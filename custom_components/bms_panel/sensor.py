@@ -46,6 +46,9 @@ class BMSPanelSensor(SensorEntity):
         self._panel_name = panel_name
         self._attr_unique_id = f"bms_panel_{panel_id}"
         self._attr_name = f"BMS Panel — {panel_name}"
+        # ВАЖНО: фиксируем entity_id явно, чтобы он всегда был sensor.bms_panel_<id>
+        # независимо от panel_name (кириллица, спецсимволы и т.п.)
+        self.entity_id = f"sensor.bms_panel_{panel_id}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, panel_id)},
             name=f"BMS Panel — {panel_name}",

@@ -1,7 +1,7 @@
 {
   "domain": "bms_panel",
   "name": "BMS Smart Panel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/bmssmart/bms-panel",
   "issue_tracker": "https://github.com/bmssmart/bms-panel/issues",
   "codeowners": ["@bmssmart"],
