@@ -1,0 +1,13 @@
+{
+  "domain": "bms_panel",
+  "name": "BMS Smart Panel",
+  "version": "1.0.0",
+  "documentation": "https://github.com/bmssmart/bms-panel",
+  "issue_tracker": "https://github.com/bmssmart/bms-panel/issues",
+  "codeowners": ["@bmssmart"],
+  "config_flow": true,
+  "dependencies": [],
+  "requirements": [],
+  "iot_class": "local_push",
+  "integration_type": "device"
+}

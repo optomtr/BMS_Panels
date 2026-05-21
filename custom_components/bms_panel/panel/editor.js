@@ -1,0 +1,625 @@
+/**
+ * BMS Smart Panel — полноэкранный редактор в сайдбаре HA.
+ * Загружается через panel_custom как Web Component <bms-panel-editor>.
+ * hass инжектится автоматически.
+ */
+
+const SCREEN_OPTIONS = [
+  { id: 'light',       label: 'Light',       icon: 'mdi:lightbulb-outline' },
+  { id: 'curtain',     label: 'Curtain',     icon: 'mdi:curtains' },
+  { id: 'music',       label: 'Music',       icon: 'mdi:music' },
+  { id: 'ac',          label: 'AC',          icon: 'mdi:air-conditioner' },
+  { id: 'heating',     label: 'Heating',     icon: 'mdi:radiator' },
+  { id: 'floor',       label: 'Floor heat',  icon: 'mdi:heating-coil' },
+  { id: 'convector',   label: 'Convector',   icon: 'mdi:radiator-disabled' },
+  { id: 'ventilation', label: 'Ventilation', icon: 'mdi:fan' },
+];
+const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','ventilation'];
+
+const STYLES = `
+:host {
+  display: block;
+  background: var(--primary-background-color);
+  min-height: 100vh;
+  font-family: var(--paper-font-body1_-_font-family, system-ui);
+  color: var(--primary-text-color);
+}
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px;
+  height: var(--header-height, 56px);
+  background: var(--app-header-background-color, var(--primary-color));
+  color: var(--app-header-text-color, #fff);
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.toolbar-title { font-size: 20px; font-weight: 400; flex: 1; }
+.toolbar .btn { background: rgba(255,255,255,0.15); color: #fff; border: none; }
+.toolbar .btn:hover { background: rgba(255,255,255,0.25); }
+
+.layout { display: flex; min-height: calc(100vh - 56px); }
+.sidebar {
+  width: 280px; flex-shrink: 0;
+  background: var(--card-background-color);
+  border-right: 1px solid var(--divider-color);
+  padding: 16px 0;
+  overflow-y: auto;
+}
+.sidebar-header {
+  padding: 0 16px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--secondary-text-color);
+}
+.panel-list-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  font-size: 14px;
+}
+.panel-list-item:hover { background: var(--secondary-background-color); }
+.panel-list-item.active {
+  background: var(--secondary-background-color);
+  border-left-color: var(--primary-color);
+  font-weight: 500;
+}
+.panel-list-item .meta {
+  font-size: 11px; color: var(--secondary-text-color);
+}
+.panel-list-item .name { flex: 1; }
+.sidebar-add {
+  margin: 12px 16px;
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 12px;
+  border: 1px dashed var(--divider-color);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--primary-color);
+  font-size: 14px;
+}
+.sidebar-add:hover { background: var(--secondary-background-color); }
+
+.content {
+  flex: 1;
+  padding: 24px;
+  max-width: 900px;
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; text-align: center; gap: 16px;
+  color: var(--secondary-text-color);
+}
+.empty-state ha-icon { --mdc-icon-size: 64px; opacity: 0.5; }
+.empty-state h2 { color: var(--primary-text-color); margin: 0; }
+
+.card {
+  background: var(--card-background-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.card-title { font-size: 16px; font-weight: 500; margin: 0 0 16px; color: var(--primary-text-color); }
+.card-sub { font-size: 12px; color: var(--secondary-text-color); margin: -8px 0 12px; }
+
+.field-row {
+  display: flex; align-items: center; gap: 12px;
+  margin: 10px 0;
+}
+.field-row label { width: 160px; font-size: 14px; color: var(--secondary-text-color); }
+.field-row .control { flex: 1; }
+.field-row input[type=range] { width: 100%; }
+.field-row .val { width: 50px; text-align: right; color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
+
+select, input[type=text], input[type=number] {
+  background: var(--card-background-color);
+  border: 1px solid var(--divider-color);
+  color: var(--primary-text-color);
+  padding: 8px 10px; border-radius: 6px; font-size: 14px;
+  font-family: inherit;
+  width: 100%; box-sizing: border-box;
+}
+
+.screen-list { display: flex; flex-direction: column; gap: 6px; }
+.screen-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--secondary-background-color);
+  border: 1px solid var(--divider-color);
+  border-radius: 8px;
+  cursor: grab; user-select: none;
+}
+.screen-row.dragging { opacity: 0.4; }
+.screen-row.drag-over { border-color: var(--primary-color); border-width: 2px; padding: 9px 13px; }
+.screen-row .handle { color: var(--secondary-text-color); font-size: 18px; cursor: grab; }
+.screen-row .name { flex: 1; font-size: 15px; }
+.screen-row.disabled .name { opacity: 0.4; text-decoration: line-through; }
+
+.entities-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px 16px; align-items: center; }
+
+.home-nav-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.home-nav-row .num { width: 24px; color: var(--secondary-text-color); font-weight: 500; }
+.home-nav-row select { flex: 1; }
+
+.btn {
+  padding: 8px 16px; border-radius: 6px;
+  border: 1px solid var(--divider-color);
+  background: var(--card-background-color);
+  color: var(--primary-text-color);
+  cursor: pointer; font-size: 14px; font-family: inherit;
+}
+.btn:hover { background: var(--secondary-background-color); }
+.btn.primary { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+.btn.danger { color: var(--error-color); }
+.btn.danger:hover { background: rgba(244, 67, 54, 0.08); }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.saved { color: var(--success-color, #4caf50); font-size: 13px; opacity: 0; transition: opacity 0.3s; }
+.saved.show { opacity: 1; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: var(--card-background-color);
+  border-radius: 12px;
+  padding: 24px;
+  width: 400px; max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.modal h3 { margin: 0 0 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+@media (max-width: 700px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--divider-color); }
+  .entities-grid { grid-template-columns: 1fr; }
+  .field-row { flex-direction: column; align-items: stretch; }
+  .field-row label { width: auto; }
+}
+`;
+
+class BMSPanelEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._activePanelId = null;
+    this._workingCache = new Map();
+    this._saveTimer = null;
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (first) {
+      this._renderShell();
+      this._refresh();
+    } else {
+      this._refresh();
+    }
+  }
+
+  set narrow(_) { /* ignore */ }
+  set route(_) { /* ignore */ }
+  set panel(_) { /* ignore */ }
+
+  _renderShell() {
+    this.shadowRoot.innerHTML = `
+      <style>${STYLES}</style>
+      <div class="toolbar">
+        <div class="toolbar-title">BMS Smart Panel — управление</div>
+        <button class="btn" id="btn-help" title="Help">?</button>
+      </div>
+      <div class="layout">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="content" id="content"></main>
+      </div>
+      <div id="modal-root"></div>
+    `;
+    this.shadowRoot.getElementById('btn-help').onclick = () => this._showHelp();
+  }
+
+  _allPanels() {
+    if (!this._hass) return [];
+    return Object.entries(this._hass.states)
+      .filter(([id]) => id.startsWith('sensor.bms_panel_'))
+      .map(([id, s]) => ({
+        entity_id: id,
+        panel_id: s.attributes.panel_id || id.replace(/^sensor\.bms_panel_/, ''),
+        panel_name: s.attributes.panel_name || s.attributes.friendly_name || id,
+        config: this._extractConfig(s.attributes),
+        last_updated: s.last_updated,
+      }))
+      .sort((a, b) => a.panel_name.localeCompare(b.panel_name));
+  }
+
+  _extractConfig(attrs) {
+    return {
+      screens: attrs.screens || {},
+      home_nav: attrs.home_nav || ['light','curtain','menu','music','ac'],
+      background_dim: attrs.background_dim ?? 30,
+      screen_timeout: attrs.screen_timeout ?? 30,
+      language: attrs.language || 'English',
+      entities: attrs.entities || {},
+    };
+  }
+
+  _activePanel() {
+    const all = this._allPanels();
+    if (!all.length) return null;
+    if (!this._activePanelId || !all.find(p => p.panel_id === this._activePanelId)) {
+      this._activePanelId = all[0].panel_id;
+    }
+    return all.find(p => p.panel_id === this._activePanelId);
+  }
+
+  _workingConfig(panel) {
+    if (!this._workingCache.has(panel.panel_id)) {
+      this._workingCache.set(panel.panel_id, JSON.parse(JSON.stringify(panel.config)));
+    }
+    return this._workingCache.get(panel.panel_id);
+  }
+
+  _refresh() {
+    this._renderSidebar();
+    this._renderContent();
+  }
+
+  // ============ SIDEBAR ============
+  _renderSidebar() {
+    const sidebar = this.shadowRoot.getElementById('sidebar');
+    if (!sidebar) return;
+    const panels = this._allPanels();
+    sidebar.innerHTML = `
+      <div class="sidebar-header">Панели (${panels.length})</div>
+      ${panels.map(p => `
+        <div class="panel-list-item ${p.panel_id === this._activePanelId ? 'active' : ''}"
+             data-id="${p.panel_id}">
+          <ha-icon icon="mdi:tablet-dashboard"></ha-icon>
+          <div class="name">
+            ${this._esc(p.panel_name)}
+            <div class="meta">${p.panel_id}</div>
+          </div>
+        </div>
+      `).join('')}
+      <div class="sidebar-add" id="btn-add-panel">
+        <ha-icon icon="mdi:plus"></ha-icon>
+        <span>Добавить панель</span>
+      </div>
+    `;
+    sidebar.querySelectorAll('.panel-list-item').forEach(item => {
+      item.onclick = () => {
+        this._activePanelId = item.dataset.id;
+        this._refresh();
+      };
+    });
+    sidebar.querySelector('#btn-add-panel').onclick = () => this._showAddPanel();
+  }
+
+  // ============ CONTENT ============
+  _renderContent() {
+    const content = this.shadowRoot.getElementById('content');
+    if (!content) return;
+    const panel = this._activePanel();
+    if (!panel) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <ha-icon icon="mdi:tablet-dashboard"></ha-icon>
+          <h2>Пока нет ни одной панели</h2>
+          <p>Нажмите "Добавить панель" в левой колонке.<br>
+             Затем установите APK на стенку и впишите в Settings → Panel ID такой же код.</p>
+        </div>
+      `;
+      return;
+    }
+    const cfg = this._workingConfig(panel);
+    const sortedScreens = SCREEN_OPTIONS
+      .map(s => ({ ...s, enabled: cfg.screens[s.id]?.enabled ?? true, order: cfg.screens[s.id]?.order ?? 99 }))
+      .sort((a, b) => a.order - b.order);
+
+    content.innerHTML = `
+      <div class="card">
+        <h3 class="card-title">
+          ${this._esc(panel.panel_name)}
+          <span style="float:right; font-size: 12px; color: var(--secondary-text-color); font-weight: 400;">
+            ID: <code>${panel.panel_id}</code>
+          </span>
+        </h3>
+        <div class="card-sub">Все изменения применяются автоматически на панели через 0.5-3 секунды.</div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Дисплей</h3>
+        <div class="field-row">
+          <label>Затемнение фона</label>
+          <input type="range" id="bg-dim" min="0" max="100" value="${cfg.background_dim}" class="control">
+          <div class="val"><span id="bg-dim-val">${cfg.background_dim}</span>%</div>
+        </div>
+        <div class="field-row">
+          <label>Lock screen после</label>
+          <select id="timeout" class="control">
+            ${[15,30,60,120,300,600].map(s => `<option value="${s}" ${cfg.screen_timeout===s?'selected':''}>${s<60?s+' сек':(s/60)+' мин'}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-row">
+          <label>Язык</label>
+          <select id="lang" class="control">
+            ${['English','Русский'].map(l => `<option value="${l}" ${cfg.language===l?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Экраны меню</h3>
+        <div class="card-sub">Перетащите ⋮⋮ чтобы поменять порядок. Свитч — включить или скрыть.</div>
+        <div class="screen-list" id="screens">
+          ${sortedScreens.map(s => `
+            <div class="screen-row ${s.enabled ? '' : 'disabled'}" draggable="true" data-id="${s.id}">
+              <span class="handle">⋮⋮</span>
+              <ha-icon icon="${s.icon}"></ha-icon>
+              <span class="name">${s.label}</span>
+              <ha-switch ${s.enabled ? 'checked' : ''} data-id="${s.id}"></ha-switch>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Главный экран — нижние 5 иконок</h3>
+        <div class="card-sub">Какие иконки показывать в нижнем ряду главного экрана и в каком порядке.</div>
+        ${cfg.home_nav.map((id, i) => `
+          <div class="home-nav-row">
+            <span class="num">${i+1}.</span>
+            <select class="home-nav-select" data-idx="${i}">
+              ${HOME_NAV_OPTIONS.map(o => `<option value="${o}" ${o===id?'selected':''}>${o}</option>`).join('')}
+            </select>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Привязки устройств (опционально)</h3>
+        <div class="card-sub">По умолчанию панель сама находит устройства по ключевым словам. Здесь можно явно указать какой entity для какого экрана использовать.</div>
+        <div class="entities-grid">
+          ${this._entityRow('Сенсор температуры (главный)',  'temp_sensor',     'sensor',       cfg.entities.temp_sensor)}
+          ${this._entityRow('Сенсор влажности (главный)',     'humidity_sensor', 'sensor',       cfg.entities.humidity_sensor)}
+          ${this._entityRow('Кондиционер',                    'ac',              'climate',      cfg.entities.ac)}
+          ${this._entityRow('Радиатор (Heating)',             'heating',         'climate',      cfg.entities.heating)}
+          ${this._entityRow('Тёплый пол (Floor)',             'floor',           'climate',      cfg.entities.floor)}
+          ${this._entityRow('Конвектор',                      'convector',       'climate',      cfg.entities.convector)}
+          ${this._entityRow('Вентилятор',                     'ventilation_fan', 'fan',          cfg.entities.ventilation_fan)}
+          ${this._entityRow('CO₂ сенсор',                     'co2_sensor',      'sensor',       cfg.entities.co2_sensor)}
+          ${this._entityRow('Музыка (media_player)',          'media_player',    'media_player', cfg.entities.media_player)}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="actions">
+          <button class="btn primary" id="btn-save">Сохранить</button>
+          <button class="btn" id="btn-reload">Перезагрузить из HA</button>
+          <button class="btn danger" id="btn-reset">Сбросить к дефолту</button>
+          <button class="btn danger" id="btn-remove">Удалить панель</button>
+          <span class="saved" id="saved">✓ Сохранено</span>
+        </div>
+      </div>
+    `;
+    this._wireContent(panel, cfg);
+  }
+
+  _entityRow(label, key, domain, current) {
+    const opts = Object.entries(this._hass.states)
+      .filter(([eid]) => eid.startsWith(domain + '.'))
+      .map(([eid, s]) => ({ id: eid, name: s.attributes.friendly_name || eid }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return `
+      <div>${label}</div>
+      <select class="entity-select" data-key="${key}">
+        <option value="">— auto (по имени) —</option>
+        ${opts.map(o => `<option value="${o.id}" ${current===o.id?'selected':''}>${this._esc(o.name)} (${o.id})</option>`).join('')}
+      </select>
+    `;
+  }
+
+  _wireContent(panel, cfg) {
+    const $ = (id) => this.shadowRoot.getElementById(id);
+
+    $('bg-dim').oninput = e => {
+      cfg.background_dim = parseInt(e.target.value);
+      $('bg-dim-val').textContent = cfg.background_dim;
+      this._scheduleSave();
+    };
+    $('timeout').onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._scheduleSave(); };
+    $('lang').onchange = e => { cfg.language = e.target.value; this._scheduleSave(); };
+
+    // Toggles + drag-and-drop
+    this.shadowRoot.querySelectorAll('.screen-list ha-switch').forEach(sw => {
+      sw.addEventListener('change', () => {
+        const id = sw.dataset.id;
+        if (!cfg.screens[id]) cfg.screens[id] = { enabled: true, order: 99 };
+        cfg.screens[id].enabled = sw.checked;
+        sw.closest('.screen-row').classList.toggle('disabled', !sw.checked);
+        this._scheduleSave();
+      });
+    });
+
+    let dragRow = null;
+    this.shadowRoot.querySelectorAll('.screen-row').forEach(row => {
+      row.ondragstart = e => {
+        dragRow = row;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      row.ondragend = () => {
+        row.classList.remove('dragging');
+        this.shadowRoot.querySelectorAll('.screen-row').forEach(r => r.classList.remove('drag-over'));
+        const ids = [...this.shadowRoot.querySelectorAll('.screen-row')].map(r => r.dataset.id);
+        ids.forEach((id, i) => {
+          if (!cfg.screens[id]) cfg.screens[id] = { enabled: true, order: 99 };
+          cfg.screens[id].order = i + 1;
+        });
+        this._scheduleSave();
+      };
+      row.ondragover = e => { e.preventDefault(); row.classList.add('drag-over'); };
+      row.ondragleave = () => row.classList.remove('drag-over');
+      row.ondrop = e => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        if (!dragRow || dragRow === row) return;
+        const parent = row.parentNode;
+        const dragIdx = [...parent.children].indexOf(dragRow);
+        const dropIdx = [...parent.children].indexOf(row);
+        if (dragIdx < dropIdx) parent.insertBefore(dragRow, row.nextSibling);
+        else parent.insertBefore(dragRow, row);
+      };
+    });
+
+    this.shadowRoot.querySelectorAll('.home-nav-select').forEach(sel => {
+      sel.onchange = () => {
+        cfg.home_nav[parseInt(sel.dataset.idx)] = sel.value;
+        this._scheduleSave();
+      };
+    });
+
+    this.shadowRoot.querySelectorAll('.entity-select').forEach(sel => {
+      sel.onchange = () => {
+        cfg.entities[sel.dataset.key] = sel.value || null;
+        this._scheduleSave();
+      };
+    });
+
+    $('btn-save').onclick = () => this._save();
+    $('btn-reload').onclick = () => {
+      this._workingCache.delete(panel.panel_id);
+      this._refresh();
+    };
+    $('btn-reset').onclick = () => {
+      if (!confirm(`Сбросить конфиг панели «${panel.panel_name}» к дефолту?`)) return;
+      this._hass.callService('bms_panel', 'reset_config', { panel_id: panel.panel_id })
+        .then(() => {
+          this._workingCache.delete(panel.panel_id);
+          setTimeout(() => this._refresh(), 400);
+        });
+    };
+    $('btn-remove').onclick = () => {
+      if (!confirm(`Удалить панель «${panel.panel_name}»? Это удалит все её настройки.`)) return;
+      this._hass.callService('bms_panel', 'remove_panel', { panel_id: panel.panel_id })
+        .then(() => {
+          this._workingCache.delete(panel.panel_id);
+          this._activePanelId = null;
+          setTimeout(() => this._refresh(), 400);
+        });
+    };
+  }
+
+  // ============ ADD PANEL MODAL ============
+  _showAddPanel() {
+    const root = this.shadowRoot.getElementById('modal-root');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="bk">
+        <div class="modal">
+          <h3>Добавить новую панель</h3>
+          <p style="color: var(--secondary-text-color); font-size: 13px; margin: 0 0 16px;">
+            Введите название и (опционально) уникальный код. Этот же код впишите на самой панели:
+            Settings → Panel ID.
+          </p>
+          <div class="field-row">
+            <label>Название</label>
+            <input type="text" id="add-name" placeholder="Например, Панель кухни" class="control" autofocus>
+          </div>
+          <div class="field-row">
+            <label>Panel ID (код)</label>
+            <input type="text" id="add-id" placeholder="Авто, если пусто" class="control">
+          </div>
+          <div class="modal-actions">
+            <button class="btn" id="cancel">Отмена</button>
+            <button class="btn primary" id="ok">Создать</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const close = () => { root.innerHTML = ''; };
+    root.querySelector('#bk').onclick = e => { if (e.target.id === 'bk') close(); };
+    root.querySelector('#cancel').onclick = close;
+    root.querySelector('#ok').onclick = () => {
+      const name = root.querySelector('#add-name').value.trim();
+      const id = root.querySelector('#add-id').value.trim().toLowerCase();
+      if (!name) { alert('Введите название'); return; }
+      this._hass.callService('bms_panel', 'add_panel', {
+        panel_name: name,
+        ...(id ? { panel_id: id } : {}),
+      }).then(() => {
+        close();
+        setTimeout(() => {
+          // Активируем созданную панель
+          const wantId = id || name.toLowerCase().replace(/[^a-zа-я0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+          this._activePanelId = wantId;
+          this._refresh();
+        }, 500);
+      }).catch(err => alert('Ошибка: ' + err.message));
+    };
+    setTimeout(() => root.querySelector('#add-name').focus(), 50);
+  }
+
+  _showHelp() {
+    const root = this.shadowRoot.getElementById('modal-root');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="bk">
+        <div class="modal" style="width: 540px;">
+          <h3>BMS Smart Panel — как пользоваться</h3>
+          <div style="font-size: 14px; color: var(--primary-text-color); line-height: 1.6;">
+            <p><b>1. Добавить панель.</b> Слева "Добавить панель" → название (например, "Панель кухни"). Получите Panel ID (например, <code>kitchen</code>).</p>
+            <p><b>2. На самой панели</b> (после установки APK): Settings → Panel ID → вписать тот же код <code>kitchen</code>.</p>
+            <p><b>3. Настроить экраны:</b> здесь же выбираете какие экраны показывать (свитч), порядок (drag-and-drop ⋮⋮), какие 5 иконок на главном.</p>
+            <p><b>4. Привязать устройства</b> (опционально): если у вас несколько кондиционеров/радиаторов — укажите конкретные entity_id для каждого экрана.</p>
+            <p><b>Изменения применяются автоматически</b> на панели через WebSocket за 0.5-3 сек.</p>
+          </div>
+          <div class="modal-actions">
+            <button class="btn primary" id="ok">Понял</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const close = () => { root.innerHTML = ''; };
+    root.querySelector('#bk').onclick = e => { if (e.target.id === 'bk') close(); };
+    root.querySelector('#ok').onclick = close;
+  }
+
+  // ============ SAVE ============
+  _scheduleSave() {
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => this._save(), 400);
+  }
+
+  _save() {
+    const panel = this._activePanel();
+    if (!panel) return;
+    const cfg = this._workingConfig(panel);
+    this._hass.callService('bms_panel', 'update_config', {
+      panel_id: panel.panel_id,
+      config: cfg,
+    }).then(() => {
+      const el = this.shadowRoot.getElementById('saved');
+      if (el) {
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 1500);
+      }
+    }).catch(err => {
+      console.error('Save failed:', err);
+      alert('Ошибка сохранения: ' + (err.message || err));
+    });
+  }
+
+  _esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+}
+
+customElements.define('bms-panel-editor', BMSPanelEditor);
+
+console.info('%c BMS-PANEL %c 1.0.0 — single addon ',
+  'color:#fff;background:#3a5bff;padding:2px 6px;border-radius:3px 0 0 3px',
+  'color:#3a5bff;background:#f0f4ff;padding:2px 6px;border-radius:0 3px 3px 0');

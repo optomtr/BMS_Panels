@@ -1,0 +1,45 @@
+update_config:
+  name: Update panel configuration
+  description: Обновить полный конфиг конкретной BMS-панели.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector: { text: {} }
+    config:
+      name: Config (object)
+      required: true
+      selector: { object: {} }
+
+reset_config:
+  name: Reset panel configuration
+  description: Сбросить конфиг к дефолтному.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector: { text: {} }
+
+add_panel:
+  name: Add new panel
+  description: Создать новую BMS-панель в системе.
+  fields:
+    panel_name:
+      name: Display name
+      required: true
+      example: Панель кухни
+      selector: { text: {} }
+    panel_id:
+      name: Panel ID (опционально)
+      required: false
+      example: kitchen
+      selector: { text: {} }
+
+remove_panel:
+  name: Remove panel
+  description: Удалить BMS-панель из системы.
+  fields:
+    panel_id:
+      name: Panel ID
+      required: true
+      selector: { text: {} }

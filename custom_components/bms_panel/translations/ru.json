@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "BMS Smart Panel",
+        "description": "Управление настенными панелями прямо из Home Assistant. После установки в сайдбаре появится пункт 'BMS Panels' — там добавляйте панели и настраивайте их."
+      }
+    },
+    "abort": {
+      "already_configured": "BMS Smart Panel уже установлен."
+    }
+  }
+}
