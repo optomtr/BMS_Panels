@@ -139,6 +139,48 @@ select, input[type=text], input[type=number] {
 
 .entities-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px 16px; align-items: center; }
 
+.bind-card {
+  border: 1px solid var(--divider-color);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 10px 0;
+  background: var(--secondary-background-color);
+}
+.bind-card.empty { border-color: #ff9800; }
+.bind-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.bind-card-title { font-size: 14px; font-weight: 500; }
+.bind-card-meta { font-size: 12px; color: var(--secondary-text-color); }
+.bind-card-meta.warn { color: #ff9800; font-weight: 500; }
+.bind-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--card-background-color);
+  border-radius: 6px;
+  padding: 6px;
+}
+.bind-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px;
+  cursor: pointer; font-size: 13px;
+  border-radius: 4px;
+  user-select: none;
+}
+.bind-item:hover { background: var(--secondary-background-color); }
+.bind-item input { margin: 0; cursor: pointer; }
+.bind-item .nm { flex: 1; }
+.bind-item .eid {
+  font-size: 11px; color: var(--secondary-text-color);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.bind-empty {
+  padding: 18px; text-align: center;
+  color: var(--secondary-text-color); font-size: 13px;
+}
+
 .home-nav-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
 .home-nav-row .num { width: 24px; color: var(--secondary-text-color); font-weight: 500; }
 .home-nav-row select { flex: 1; }
@@ -383,50 +425,57 @@ class BMSPanelEditor extends HTMLElement {
 
       <div class="card">
         <h3 class="card-title">Привязки устройств</h3>
-        <div class="card-sub">Без явной привязки экран будет пустой. Каждое устройство может состоять из нескольких сущностей.</div>
-
-        <h4 style="margin:14px 0 8px;font-size:14px;color:var(--secondary-text-color);">Главный экран</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Сенсор температуры',  'temp_sensor',     'sensor', cfg.entities.temp_sensor)}
-          ${this._entityRow('Сенсор влажности',    'humidity_sensor', 'sensor', cfg.entities.humidity_sensor)}
+        <div class="card-sub" style="color: #ff9800;">
+          <strong>Важно:</strong> выберите ТОЛЬКО те устройства которые относятся к этой панели (комнате).
+          Не привязывайте всё подряд — у каждой панели свой список.
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">AC (Кондиционер)</h4>
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">📺 Light (Свет)</h4>
+        ${this._entityMulti('Лампы для этой панели', 'lights', 'light', cfg.entities)}
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">🪟 Curtain (Шторы)</h4>
+        ${this._entityMulti('Шторы / cover для этой панели', 'curtains', 'cover', cfg.entities)}
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">🏠 Главный экран — датчики</h4>
         <div class="entities-grid">
-          ${this._entityRow('Climate (термостат)',     'ac',            'climate', cfg.entities.ac)}
-          ${this._entityRow('Сенсор текущей t° (опц.)','ac_temp_sensor','sensor',  cfg.entities.ac_temp_sensor)}
-          ${this._entityRow('Отдельный вентилятор (опц.)','ac_fan',     'fan',     cfg.entities.ac_fan)}
+          ${this._entityRow('Сенсор температуры', 'temp_sensor',     'sensor', cfg.entities.temp_sensor)}
+          ${this._entityRow('Сенсор влажности',   'humidity_sensor', 'sensor', cfg.entities.humidity_sensor)}
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Heating (Радиатор)</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Climate (термостат)',        'heating',             'climate', cfg.entities.heating)}
-          ${this._entityRow('Сенсор текущей t° (опц.)',   'heating_temp_sensor', 'sensor',  cfg.entities.heating_temp_sensor)}
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">❄️ AC (Кондиционер)</h4>
+        ${this._entityMulti('Climate-термостаты AC', 'acs', 'climate', cfg.entities)}
+        <div class="entities-grid" style="margin-top:8px;">
+          ${this._entityRow('Сенсор текущей t° (опц.)',    'ac_temp_sensor', 'sensor', cfg.entities.ac_temp_sensor)}
+          ${this._entityRow('Отдельный вентилятор (опц.)', 'ac_fan',         'fan',    cfg.entities.ac_fan)}
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Floor heat (Тёплый пол)</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Climate (термостат)',      'floor',             'climate', cfg.entities.floor)}
-          ${this._entityRow('Сенсор текущей t° (опц.)', 'floor_temp_sensor', 'sensor',  cfg.entities.floor_temp_sensor)}
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">🔥 Heating (Радиатор)</h4>
+        ${this._entityMulti('Climate-термостаты радиаторов', 'heatings', 'climate', cfg.entities)}
+        <div class="entities-grid" style="margin-top:8px;">
+          ${this._entityRow('Сенсор текущей t° (опц.)', 'heating_temp_sensor', 'sensor', cfg.entities.heating_temp_sensor)}
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Convector (Конвектор)</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Climate (термостат)',         'convector',             'climate', cfg.entities.convector)}
-          ${this._entityRow('Сенсор текущей t° (опц.)',    'convector_temp_sensor', 'sensor',  cfg.entities.convector_temp_sensor)}
-          ${this._entityRow('Отдельный вентилятор (опц.)', 'convector_fan',         'fan',     cfg.entities.convector_fan)}
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">🟩 Floor heat (Тёплый пол)</h4>
+        ${this._entityMulti('Climate-термостаты тёплого пола', 'floors', 'climate', cfg.entities)}
+        <div class="entities-grid" style="margin-top:8px;">
+          ${this._entityRow('Сенсор текущей t° (опц.)', 'floor_temp_sensor', 'sensor', cfg.entities.floor_temp_sensor)}
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Ventilation (Вентиляция)</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Fan (вентилятор)', 'ventilation_fan', 'fan',    cfg.entities.ventilation_fan)}
-          ${this._entityRow('CO₂ сенсор',       'co2_sensor',      'sensor', cfg.entities.co2_sensor)}
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">▭ Convector (Конвектор)</h4>
+        ${this._entityMulti('Climate-термостаты конвекторов', 'convectors', 'climate', cfg.entities)}
+        <div class="entities-grid" style="margin-top:8px;">
+          ${this._entityRow('Сенсор текущей t° (опц.)',    'convector_temp_sensor', 'sensor', cfg.entities.convector_temp_sensor)}
+          ${this._entityRow('Отдельный вентилятор (опц.)', 'convector_fan',         'fan',    cfg.entities.convector_fan)}
         </div>
 
-        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Music (Музыка)</h4>
-        <div class="entities-grid">
-          ${this._entityRow('Media player', 'media_player', 'media_player', cfg.entities.media_player)}
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">💨 Ventilation (Вентиляция)</h4>
+        ${this._entityMulti('Fan-устройства вентиляции', 'ventilation_fans', 'fan', cfg.entities)}
+        <div class="entities-grid" style="margin-top:8px;">
+          ${this._entityRow('CO₂ сенсор', 'co2_sensor', 'sensor', cfg.entities.co2_sensor)}
         </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">🎵 Music (Музыка)</h4>
+        ${this._entityMulti('Media player для этой панели', 'media_players', 'media_player', cfg.entities)}
       </div>
 
       <div class="card" style="position:sticky;bottom:0;z-index:5;border:2px solid transparent;" id="save-card">
@@ -456,6 +505,38 @@ class BMSPanelEditor extends HTMLElement {
         <option value="">— не привязано —</option>
         ${opts.map(o => `<option value="${o.id}" ${current===o.id?'selected':''}>${this._esc(o.name)} (${o.id})</option>`).join('')}
       </select>
+    `;
+  }
+
+  // Multi-select карточка с чекбоксами
+  _entityMulti(label, key, domain, entities) {
+    const selected = Array.isArray(entities[key]) ? entities[key] : (entities[key] ? [entities[key]] : []);
+    const all = Object.entries(this._hass.states)
+      .filter(([eid]) => eid.startsWith(domain + '.'))
+      .map(([eid, s]) => ({ id: eid, name: s.attributes.friendly_name || eid }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const empty = selected.length === 0;
+    return `
+      <div class="bind-card ${empty ? 'empty' : ''}">
+        <div class="bind-card-head">
+          <div class="bind-card-title">${this._esc(label)}</div>
+          <div class="bind-card-meta ${empty ? 'warn' : ''}">
+            ${empty ? '⚠ Не выбрано — экран будет пустой' : `Выбрано: ${selected.length} из ${all.length}`}
+          </div>
+        </div>
+        ${all.length === 0
+          ? `<div class="bind-empty">В Home Assistant нет устройств с доменом <code>${domain}.*</code></div>`
+          : `<div class="bind-list">
+              ${all.map(o => `
+                <label class="bind-item">
+                  <input type="checkbox" class="entity-multi-cb" data-key="${key}" value="${o.id}" ${selected.includes(o.id) ? 'checked' : ''}>
+                  <span class="nm">${this._esc(o.name)}</span>
+                  <span class="eid">${o.id}</span>
+                </label>
+              `).join('')}
+            </div>`
+        }
+      </div>
     `;
   }
 
@@ -542,6 +623,34 @@ class BMSPanelEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll('.entity-select').forEach(sel => {
       sel.onchange = () => {
         cfg.entities[sel.dataset.key] = sel.value || null;
+        this._markDirty();
+      };
+    });
+
+    // Multi-select чекбоксы
+    this.shadowRoot.querySelectorAll('.entity-multi-cb').forEach(cb => {
+      cb.onchange = () => {
+        const key = cb.dataset.key;
+        const cur = Array.isArray(cfg.entities[key]) ? cfg.entities[key].slice() : [];
+        const idx = cur.indexOf(cb.value);
+        if (cb.checked && idx < 0) cur.push(cb.value);
+        if (!cb.checked && idx >= 0) cur.splice(idx, 1);
+        cfg.entities[key] = cur;
+        // Обновляем счётчик в шапке карточки
+        const card = cb.closest('.bind-card');
+        if (card) {
+          const meta = card.querySelector('.bind-card-meta');
+          const all = card.querySelectorAll('.entity-multi-cb').length;
+          if (cur.length === 0) {
+            card.classList.add('empty');
+            meta.className = 'bind-card-meta warn';
+            meta.textContent = '⚠ Не выбрано — экран будет пустой';
+          } else {
+            card.classList.remove('empty');
+            meta.className = 'bind-card-meta';
+            meta.textContent = `Выбрано: ${cur.length} из ${all}`;
+          }
+        }
         this._markDirty();
       };
     });
