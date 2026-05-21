@@ -231,7 +231,7 @@ class BMSPanelEditor extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._activePanelId = null;
     this._workingCache = new Map();
-    this._saveTimer = null;
+    this._dirty = false;
   }
 
   set hass(hass) {

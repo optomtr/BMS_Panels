@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import os
 import re
@@ -82,6 +83,14 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         # Старые версии HA — синхронная регистрация
         hass.http.register_static_path(STATIC_URL_PATH, panel_dir, cache_headers=False)
 
+      # ---- Cache-busting: добавляем версию в URL editor.js ----
+    addon_version = "1.2.0"
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "manifest.json"), "r") as f:
+            addon_version = json.load(f).get("version", "1.2.0")
+    except Exception:
+        pass
+
     # ---- Сайдбар-панель ----
     try:
         await panel_custom.async_register_panel(
@@ -90,11 +99,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             sidebar_title=SIDEBAR_TITLE,
             sidebar_icon=SIDEBAR_ICON,
             frontend_url_path=SIDEBAR_URL_PATH,
-            module_url=f"{STATIC_URL_PATH}/editor.js",
+            module_url=f"{STATIC_URL_PATH}/editor.js?v={addon_version}",
             embed_iframe=False,
             require_admin=False,
         )
-        _LOGGER.info("BMS Panel registered sidebar item: %s", SIDEBAR_TITLE)
+        _LOGGER.info("BMS Panel registered sidebar item: %s (v%s)", SIDEBAR_TITLE, addon_version)
     except ValueError as e:
         _LOGGER.debug("Sidebar panel already registered: %s", e)
 
