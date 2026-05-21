@@ -329,7 +329,7 @@ class BMSPanelEditor extends HTMLElement {
             ID: <code>${panel.panel_id}</code>
           </span>
         </h3>
-        <div class="card-sub">Все изменения применяются автоматически на панели через 0.5-3 секунды.</div>
+        <div class="card-sub">Изменения применяются на панели после нажатия «Сохранить».</div>
       </div>
 
       <div class="card">
@@ -382,31 +382,66 @@ class BMSPanelEditor extends HTMLElement {
       </div>
 
       <div class="card">
-        <h3 class="card-title">Привязки устройств (опционально)</h3>
-        <div class="card-sub">По умолчанию панель сама находит устройства по ключевым словам. Здесь можно явно указать какой entity для какого экрана использовать.</div>
+        <h3 class="card-title">Привязки устройств</h3>
+        <div class="card-sub">Без явной привязки экран будет пустой. Каждое устройство может состоять из нескольких сущностей.</div>
+
+        <h4 style="margin:14px 0 8px;font-size:14px;color:var(--secondary-text-color);">Главный экран</h4>
         <div class="entities-grid">
-          ${this._entityRow('Сенсор температуры (главный)',  'temp_sensor',     'sensor',       cfg.entities.temp_sensor)}
-          ${this._entityRow('Сенсор влажности (главный)',     'humidity_sensor', 'sensor',       cfg.entities.humidity_sensor)}
-          ${this._entityRow('Кондиционер',                    'ac',              'climate',      cfg.entities.ac)}
-          ${this._entityRow('Радиатор (Heating)',             'heating',         'climate',      cfg.entities.heating)}
-          ${this._entityRow('Тёплый пол (Floor)',             'floor',           'climate',      cfg.entities.floor)}
-          ${this._entityRow('Конвектор',                      'convector',       'climate',      cfg.entities.convector)}
-          ${this._entityRow('Вентилятор',                     'ventilation_fan', 'fan',          cfg.entities.ventilation_fan)}
-          ${this._entityRow('CO₂ сенсор',                     'co2_sensor',      'sensor',       cfg.entities.co2_sensor)}
-          ${this._entityRow('Музыка (media_player)',          'media_player',    'media_player', cfg.entities.media_player)}
+          ${this._entityRow('Сенсор температуры',  'temp_sensor',     'sensor', cfg.entities.temp_sensor)}
+          ${this._entityRow('Сенсор влажности',    'humidity_sensor', 'sensor', cfg.entities.humidity_sensor)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">AC (Кондиционер)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Climate (термостат)',     'ac',            'climate', cfg.entities.ac)}
+          ${this._entityRow('Сенсор текущей t° (опц.)','ac_temp_sensor','sensor',  cfg.entities.ac_temp_sensor)}
+          ${this._entityRow('Отдельный вентилятор (опц.)','ac_fan',     'fan',     cfg.entities.ac_fan)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Heating (Радиатор)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Climate (термостат)',        'heating',             'climate', cfg.entities.heating)}
+          ${this._entityRow('Сенсор текущей t° (опц.)',   'heating_temp_sensor', 'sensor',  cfg.entities.heating_temp_sensor)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Floor heat (Тёплый пол)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Climate (термостат)',      'floor',             'climate', cfg.entities.floor)}
+          ${this._entityRow('Сенсор текущей t° (опц.)', 'floor_temp_sensor', 'sensor',  cfg.entities.floor_temp_sensor)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Convector (Конвектор)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Climate (термостат)',         'convector',             'climate', cfg.entities.convector)}
+          ${this._entityRow('Сенсор текущей t° (опц.)',    'convector_temp_sensor', 'sensor',  cfg.entities.convector_temp_sensor)}
+          ${this._entityRow('Отдельный вентилятор (опц.)', 'convector_fan',         'fan',     cfg.entities.convector_fan)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Ventilation (Вентиляция)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Fan (вентилятор)', 'ventilation_fan', 'fan',    cfg.entities.ventilation_fan)}
+          ${this._entityRow('CO₂ сенсор',       'co2_sensor',      'sensor', cfg.entities.co2_sensor)}
+        </div>
+
+        <h4 style="margin:18px 0 8px;font-size:14px;color:var(--secondary-text-color);">Music (Музыка)</h4>
+        <div class="entities-grid">
+          ${this._entityRow('Media player', 'media_player', 'media_player', cfg.entities.media_player)}
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="position:sticky;bottom:0;z-index:5;border:2px solid transparent;" id="save-card">
         <div class="actions">
-          <button class="btn primary" id="btn-save">Сохранить</button>
-          <button class="btn" id="btn-reload">Перезагрузить из HA</button>
+          <button class="btn primary" id="btn-save" style="min-width:140px;font-weight:500;">Сохранить</button>
+          <button class="btn" id="btn-reload">Сбросить изменения</button>
           <button class="btn danger" id="btn-reset">Сбросить к дефолту</button>
           <button class="btn danger" id="btn-remove">Удалить панель</button>
-          <span class="saved" id="saved">✓ Сохранено</span>
+          <span id="dirty-indicator" style="color:#ff9800;font-size:13px;display:none;font-weight:500;">● Несохранённые изменения</span>
+          <span class="saved" id="saved">✓ Сохранено и отправлено в панель</span>
         </div>
       </div>
     `;
+    this._dirty = false;
+    this._updateSaveIndicator();
     this._wireContent(panel, cfg);
   }
 
@@ -418,10 +453,30 @@ class BMSPanelEditor extends HTMLElement {
     return `
       <div>${label}</div>
       <select class="entity-select" data-key="${key}">
-        <option value="">— auto (по имени) —</option>
+        <option value="">— не привязано —</option>
         ${opts.map(o => `<option value="${o.id}" ${current===o.id?'selected':''}>${this._esc(o.name)} (${o.id})</option>`).join('')}
       </select>
     `;
+  }
+
+  _markDirty() {
+    this._dirty = true;
+    this._updateSaveIndicator();
+  }
+  _updateSaveIndicator() {
+    const ind = this.shadowRoot.getElementById('dirty-indicator');
+    const card = this.shadowRoot.getElementById('save-card');
+    const btn = this.shadowRoot.getElementById('btn-save');
+    if (!ind || !card || !btn) return;
+    if (this._dirty) {
+      ind.style.display = '';
+      card.style.borderColor = '#ff9800';
+      btn.textContent = 'Сохранить *';
+    } else {
+      ind.style.display = 'none';
+      card.style.borderColor = 'transparent';
+      btn.textContent = 'Сохранить';
+    }
   }
 
   _wireContent(panel, cfg) {
@@ -430,10 +485,10 @@ class BMSPanelEditor extends HTMLElement {
     $('bg-dim').oninput = e => {
       cfg.background_dim = parseInt(e.target.value);
       $('bg-dim-val').textContent = cfg.background_dim;
-      this._scheduleSave();
+      this._markDirty();
     };
-    $('timeout').onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._scheduleSave(); };
-    $('lang').onchange = e => { cfg.language = e.target.value; this._scheduleSave(); };
+    $('timeout').onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._markDirty(); };
+    $('lang').onchange = e => { cfg.language = e.target.value; this._markDirty(); };
 
     // Toggles + drag-and-drop
     this.shadowRoot.querySelectorAll('.screen-list ha-switch').forEach(sw => {
@@ -442,7 +497,7 @@ class BMSPanelEditor extends HTMLElement {
         if (!cfg.screens[id]) cfg.screens[id] = { enabled: true, order: 99 };
         cfg.screens[id].enabled = sw.checked;
         sw.closest('.screen-row').classList.toggle('disabled', !sw.checked);
-        this._scheduleSave();
+        this._markDirty();
       });
     });
 
@@ -461,7 +516,7 @@ class BMSPanelEditor extends HTMLElement {
           if (!cfg.screens[id]) cfg.screens[id] = { enabled: true, order: 99 };
           cfg.screens[id].order = i + 1;
         });
-        this._scheduleSave();
+        this._markDirty();
       };
       row.ondragover = e => { e.preventDefault(); row.classList.add('drag-over'); };
       row.ondragleave = () => row.classList.remove('drag-over');
@@ -480,14 +535,14 @@ class BMSPanelEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll('.home-nav-select').forEach(sel => {
       sel.onchange = () => {
         cfg.home_nav[parseInt(sel.dataset.idx)] = sel.value;
-        this._scheduleSave();
+        this._markDirty();
       };
     });
 
     this.shadowRoot.querySelectorAll('.entity-select').forEach(sel => {
       sel.onchange = () => {
         cfg.entities[sel.dataset.key] = sel.value || null;
-        this._scheduleSave();
+        this._markDirty();
       };
     });
 
@@ -589,26 +644,27 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   // ============ SAVE ============
-  _scheduleSave() {
-    if (this._saveTimer) clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => this._save(), 400);
-  }
-
   _save() {
     const panel = this._activePanel();
     if (!panel) return;
     const cfg = this._workingConfig(panel);
+    const btn = this.shadowRoot.getElementById('btn-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Отправляю…'; }
     this._hass.callService('bms_panel', 'update_config', {
       panel_id: panel.panel_id,
       config: cfg,
     }).then(() => {
+      this._dirty = false;
+      this._updateSaveIndicator();
+      if (btn) { btn.disabled = false; }
       const el = this.shadowRoot.getElementById('saved');
       if (el) {
         el.classList.add('show');
-        setTimeout(() => el.classList.remove('show'), 1500);
+        setTimeout(() => el.classList.remove('show'), 2500);
       }
     }).catch(err => {
       console.error('Save failed:', err);
+      if (btn) { btn.disabled = false; btn.textContent = 'Сохранить *'; }
       alert('Ошибка сохранения: ' + (err.message || err));
     });
   }
