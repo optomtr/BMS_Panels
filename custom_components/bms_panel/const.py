@@ -1,56 +1,113 @@
-"""Constants for BMS Smart Panel integration."""
+"""Constants for BMS Smart Panel integration.
+
+Все имена ключей (`SCREEN_KEYS`, `BIND_KEYS`) — это контракт с Android-приложением.
+Менять только синхронно с `android/.../data/config/PanelConfig.kt`.
+"""
 
 DOMAIN = "bms_panel"
 
 CONF_PANEL_ID = "panel_id"
 CONF_PANEL_NAME = "panel_name"
 
-# Все экраны которые поддерживает панель
-ALL_SCREENS = [
-    "light",
-    "curtain",
-    "music",
-    "ac",
-    "heating",
-    "floor",
-    "convector",
-    "ventilation",
-]
+# ---- URL пути ----
+SIDEBAR_URL_PATH = "bms-panels"
+STATIC_URL_PATH = "/bms_panel_static"
 
-# Иконки которые могут стоять в нижнем ряду главного экрана
+# ---- Текущая версия схемы. Меняется когда добавляются/удаляются поля. ----
+# Android знает свою минимальную поддерживаемую версию. Если APK старый и схема
+# выше — интегратор увидит warning «обновите APK».
+CONFIG_SCHEMA_VERSION = 2
+
+# ---- Экраны панели ----
+# id → meta. Android читает по id; UI берёт label/icon отсюда.
+SCREEN_KEYS = ["light", "curtain", "music", "ac", "heating", "floor", "convector", "ventilation"]
+
+# ---- Иконки нижнего ряда главного экрана ----
 HOME_NAV_OPTIONS = ["light", "curtain", "menu", "music", "ac", "heating", "ventilation"]
+HOME_NAV_REQUIRED_LEN = 5
 
-# Дефолтная конфигурация для свежесозданной панели
-DEFAULT_CONFIG = {
-    "screens": {
-        "light":       {"enabled": True,  "order": 1, "label": "Light"},
-        "curtain":     {"enabled": True,  "order": 2, "label": "Curtain"},
-        "music":       {"enabled": True,  "order": 3, "label": "Music"},
-        "ac":          {"enabled": True,  "order": 4, "label": "AC"},
-        "heating":     {"enabled": True,  "order": 5, "label": "Heating"},
-        "floor":       {"enabled": True,  "order": 6, "label": "Floor heat"},
-        "convector":   {"enabled": True,  "order": 7, "label": "Convector"},
-        "ventilation": {"enabled": True,  "order": 8, "label": "Ventilation"},
-    },
-    "home_nav": ["light", "curtain", "menu", "music", "ac"],
-    "background_dim": 30,
-    "screen_timeout": 30,
-    "language": "English",
-    # Привязки entity_id для индивидуальной настройки (опционально)
-    "entities": {
-        "temp_sensor": None,
-        "humidity_sensor": None,
-        "ac": None,
-        "heating": None,
-        "floor": None,
-        "convector": None,
-        "ventilation_fan": None,
-        "co2_sensor": None,
-        "media_player": None,
-    },
+# ---- Ключи привязок — Android pinnedOne/pinnedMany ----
+# multi=True → массив entity_id, multi=False → один entity_id или null.
+# `domain` — какие entity допустимы (ошибка если выбран другой).
+# `requires_screen` — если экран выключен, ключ не имеет смысла (info).
+BIND_KEYS = {
+    # Свет / шторы / музыка
+    "lights":          {"multi": True,  "domain": "light",        "requires_screen": "light"},
+    "curtains":        {"multi": True,  "domain": "cover",        "requires_screen": "curtain"},
+    "media_players":   {"multi": True,  "domain": "media_player", "requires_screen": "music"},
+
+    # Климат — multi по типу
+    "acs":             {"multi": True,  "domain": "climate",      "requires_screen": "ac"},
+    "heatings":        {"multi": True,  "domain": "climate",      "requires_screen": "heating"},
+    "floors":          {"multi": True,  "domain": "climate",      "requires_screen": "floor"},
+    "convectors":      {"multi": True,  "domain": "climate",      "requires_screen": "convector"},
+
+    # Вентиляция
+    "ventilation_fans":{"multi": True,  "domain": "fan",          "requires_screen": "ventilation"},
+    "co2_sensor":      {"multi": False, "domain": "sensor",       "requires_screen": "ventilation"},
+
+    # Главный экран — датчики
+    "temp_sensor":     {"multi": False, "domain": "sensor",       "requires_screen": None},
+    "humidity_sensor": {"multi": False, "domain": "sensor",       "requires_screen": None},
+
+    # Fallback-сенсоры для climate-экранов (когда сам термостат не отдаёт current_temperature)
+    "ac_temp_sensor":        {"multi": False, "domain": "sensor", "requires_screen": "ac"},
+    "heating_temp_sensor":   {"multi": False, "domain": "sensor", "requires_screen": "heating"},
+    "floor_temp_sensor":     {"multi": False, "domain": "sensor", "requires_screen": "floor"},
+    "convector_temp_sensor": {"multi": False, "domain": "sensor", "requires_screen": "convector"},
+
+    # Отдельные вентиляторы (для AC/конвектора)
+    "ac_fan":         {"multi": False, "domain": "fan", "requires_screen": "ac"},
+    "convector_fan":  {"multi": False, "domain": "fan", "requires_screen": "convector"},
 }
 
+# ---- Числовые границы ----
+BG_DIM_MIN, BG_DIM_MAX = 0, 100
+SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600]  # секунды
+LANGUAGES = ["English", "Русский"]
+
+# ---- Дефолтная конфигурация ----
+DEFAULT_CONFIG = {
+    "schema_version": CONFIG_SCHEMA_VERSION,
+    "screens": {
+        # По умолчанию включён только Light — самое универсальное (есть везде).
+        # Интегратор/владелец включит то что есть в этой комнате — это явный
+        # opt-in вместо «выключите 5 ненужных вручную». В UI экраны со снятым
+        # флажком скрыты на табе «Устройства» как «выключенные».
+        "light":       {"enabled": True,  "order": 1, "label": "Light"},
+        "curtain":     {"enabled": False, "order": 2, "label": "Curtain"},
+        "music":       {"enabled": False, "order": 3, "label": "Music"},
+        "ac":          {"enabled": False, "order": 4, "label": "AC"},
+        "heating":     {"enabled": False, "order": 5, "label": "Heating"},
+        "floor":       {"enabled": False, "order": 6, "label": "Floor heat"},
+        "convector":   {"enabled": False, "order": 7, "label": "Convector"},
+        "ventilation": {"enabled": False, "order": 8, "label": "Ventilation"},
+    },
+    # home_nav по умолчанию: только light (включен) + menu. Остальные слоты —
+    # menu заполнители (4 «menu» лучше чем 4 ссылки на выключенные экраны).
+    "home_nav": ["light", "menu", "menu", "menu", "menu"],
+    "background_dim": 30,
+    "screen_timeout": 30,
+    "language": "Русский",
+    "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},
+    # area_id привязки HA — для группировки entity автоматически
+    "area_id": None,
+}
+
+# ---- Сервисы ----
 SERVICE_UPDATE_CONFIG = "update_config"
-SERVICE_RESET_CONFIG = "reset_config"
-SERVICE_ADD_PANEL = "add_panel"
-SERVICE_REMOVE_PANEL = "remove_panel"
+SERVICE_RESET_CONFIG  = "reset_config"
+SERVICE_ADD_PANEL     = "add_panel"
+SERVICE_REMOVE_PANEL  = "remove_panel"
+SERVICE_CLONE_PANEL   = "clone_panel"
+
+# Сигналы dispatcher_send — service → sensor (избегаем race на async_added_to_hass)
+SIGNAL_CONFIG_UPDATED = f"{DOMAIN}_config_updated"  # arg: panel_id
+
+# ---- Storage ----
+STORAGE_VERSION_MAJOR = 1
+STORAGE_VERSION_MINOR = 2  # bumped когда меняется shape DEFAULT_CONFIG
+STORAGE_KEY = "bms_panel.configs"
+
+# ---- Slug — только ASCII, чтобы entity_id всегда был валидным ----
+SLUG_REGEX = r"^[a-z0-9_-]{2,32}$"

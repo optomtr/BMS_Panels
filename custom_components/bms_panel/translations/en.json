@@ -1,13 +1,36 @@
 {
+  "title": "BMS Smart Panel",
   "config": {
     "step": {
       "user": {
         "title": "BMS Smart Panel",
-        "description": "Manage your wall panels right from Home Assistant. After install, find 'BMS Panels' in the sidebar — add panels and configure them there."
+        "description": "Manage wall-mounted BMS panels from Home Assistant. After installation a 'BMS Panels' item appears in the HA sidebar — add panels and configure their screens and bindings there."
       }
     },
     "abort": {
-      "already_configured": "BMS Smart Panel is already set up."
+      "already_configured": "BMS Smart Panel is already configured."
+    }
+  },
+  "services": {
+    "add_panel": {
+      "name": "Add panel",
+      "description": "Creates a new BMS panel and registers sensor.bms_panel_<id>."
+    },
+    "remove_panel": {
+      "name": "Remove panel",
+      "description": "Removes a panel and its config."
+    },
+    "update_config": {
+      "name": "Update config",
+      "description": "Updates the full config of a panel. Validation errors block saving."
+    },
+    "reset_config": {
+      "name": "Reset config",
+      "description": "Resets a panel config to defaults."
+    },
+    "clone_panel": {
+      "name": "Clone panel",
+      "description": "Creates a new panel with the same screens/settings, without entity bindings."
     }
   }
 }

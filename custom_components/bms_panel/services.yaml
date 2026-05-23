@@ -1,19 +1,24 @@
 update_config:
-  name: Update panel configuration
-  description: Обновить полный конфиг конкретной BMS-панели.
+  name: Обновить конфиг панели
+  description: >
+    Обновить полный конфиг конкретной BMS-панели. Если в конфиге есть
+    ошибки валидации (несуществующие entity, конфликты) — сервис вернёт
+    HomeAssistantError и не сохранит.
   fields:
     panel_id:
       name: Panel ID
+      description: Код панели, заданный при add_panel.
       required: true
       selector: { text: {} }
     config:
-      name: Config (object)
+      name: Конфиг
+      description: Полный объект конфига (screens, home_nav, entities, и т.д.).
       required: true
       selector: { object: {} }
 
 reset_config:
-  name: Reset panel configuration
-  description: Сбросить конфиг к дефолтному.
+  name: Сбросить конфиг
+  description: Вернуть конфиг панели к дефолту (все экраны включены, привязок нет).
   fields:
     panel_id:
       name: Panel ID
@@ -21,25 +26,52 @@ reset_config:
       selector: { text: {} }
 
 add_panel:
-  name: Add new panel
-  description: Создать новую BMS-панель в системе.
+  name: Добавить новую панель
+  description: >
+    Создать новую BMS-панель в системе. После добавления в сайдбаре
+    появится она же и автоматически создастся sensor.bms_panel_<id>.
   fields:
     panel_name:
-      name: Display name
+      name: Имя панели
+      description: Читаемое название, например «Панель кухни».
       required: true
       example: Панель кухни
       selector: { text: {} }
     panel_id:
       name: Panel ID (опционально)
+      description: >
+        Латиница, цифры, _ и - (2–32 символа). Если не задан — сгенерируется
+        из имени. Этот же код вводят на самой панели в Settings → Panel ID.
       required: false
       example: kitchen
       selector: { text: {} }
 
 remove_panel:
-  name: Remove panel
-  description: Удалить BMS-панель из системы.
+  name: Удалить панель
+  description: Удалить BMS-панель из системы вместе с её конфигом и sensor.
   fields:
     panel_id:
       name: Panel ID
       required: true
+      selector: { text: {} }
+
+clone_panel:
+  name: Скопировать панель
+  description: >
+    Создать новую панель с теми же экранами и настройками что у источника.
+    Привязки устройств НЕ копируются (одна лампа не может быть в двух
+    панелях). Удобно для одинаково настроенных комнат.
+  fields:
+    source_panel_id:
+      name: Откуда копировать (Panel ID)
+      required: true
+      selector: { text: {} }
+    panel_name:
+      name: Имя новой панели
+      required: true
+      example: Панель спальни 2
+      selector: { text: {} }
+    panel_id:
+      name: Panel ID новой панели (опционально)
+      required: false
       selector: { text: {} }
