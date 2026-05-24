@@ -308,9 +308,9 @@ export function validate(cfg, panelId, allPanels, hassStates) {
   }
   for (const [eid, keys] of seenInKeys) {
     if (keys.length > 1) {
-      out.push(makeIssue(`V56_${eid}`, SEV_ERROR,
+      out.push(makeIssue(`V56_${eid}`, SEV_WARN,
         `«${eid}» привязан одновременно к: ${keys.join(', ')}.`,
-        'Уберите дубликат — entity может быть только в одном слоте.',
+        'Можно сохранить, но проверьте: один entity будет использоваться в нескольких слотах.',
         { type: 'duplicate_self', entity_id: eid }));
     }
   }

@@ -376,9 +376,9 @@ def validate(
     for eid, keys in seen_in_keys.items():
         if len(keys) > 1:
             issues.append(Issue(
-                f"V56_{eid}", SEV_ERROR,
+                f"V56_{eid}", SEV_WARN,
                 f"«{eid}» привязан одновременно к: {', '.join(keys)}.",
-                "Так нельзя — выберите один экран.",
+                "Можно сохранить, но проверьте: один entity будет использоваться в нескольких слотах.",
                 {"type": "duplicate_self", "entity_id": eid},
             ))
 
