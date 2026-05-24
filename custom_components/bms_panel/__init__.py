@@ -237,9 +237,14 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
     async def add_panel(call: ServiceCall) -> None:
         raw_id = (call.data.get("panel_id") or "").strip().lower()
-        panel_name = (call.data.get("panel_name") or "").strip()
+        # Принимаем оба ключа — panel_name (документированный) и name (интуитивно
+        # ожидаемый интегратором по аналогии с другими HA сервисами).
+        panel_name = (call.data.get("panel_name") or call.data.get("name") or "").strip()
         if not panel_name:
-            raise HomeAssistantError("panel_name не может быть пустым.")
+            raise HomeAssistantError(
+                "Имя панели не задано. Передайте panel_name (или name) — "
+                "например «Кухня» или «Спальня»."
+            )
         if not raw_id:
             raw_id = _slug(panel_name)
         if not re.match(SLUG_REGEX, raw_id):
@@ -248,6 +253,19 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             )
         if raw_id in hass.data[DOMAIN]["meta"]:
             raise HomeAssistantError(f"Panel ID «{raw_id}» уже занят.")
+
+        # КРИТИЧНО: если sensor platform не загружена через config entry —
+        # add_entities callback отсутствует и панель не появится. Раньше тут
+        # был молчаливый warning — интегратор видел успех но пустой результат.
+        # Теперь падаем сразу с понятным сообщением.
+        add_cb = hass.data[DOMAIN].get("add_entities")
+        if not add_cb:
+            raise HomeAssistantError(
+                "Интеграция BMS Smart Panel установлена, но не настроена. "
+                "Откройте Settings → Devices & Services → Add Integration → "
+                "найдите «BMS Smart Panel» и нажмите Submit. После этого "
+                "повторите add_panel."
+            )
 
         # In-memory сначала, потом save. Если sensor-create упадёт — откатим всё.
         hass.data[DOMAIN]["meta"][raw_id] = {"panel_name": panel_name}
@@ -263,21 +281,28 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(f"Не удалось сохранить: {exc}") from exc
 
         from .sensor import BMSPanelSensor
-        add_cb = hass.data[DOMAIN].get("add_entities")
-        if add_cb:
+        try:
+            sensor = BMSPanelSensor(hass, raw_id, panel_name)
+            hass.data[DOMAIN]["panels"][raw_id] = sensor
+            add_cb([sensor])
+            _LOGGER.info("Added panel '%s' (%s)", raw_id, panel_name)
+        except Exception as exc:  # noqa: BLE001
+            # add_cb оказался stale (после unload). Чистим in-memory и storage
+            # чтобы не оставлять zombie. Интегратор увидит реальную причину.
+            _LOGGER.exception("Failed to add sensor via callback")
+            hass.data[DOMAIN]["panels"].pop(raw_id, None)
+            hass.data[DOMAIN]["meta"].pop(raw_id, None)
+            if is_new_config:
+                hass.data[DOMAIN]["configs"].pop(raw_id, None)
             try:
-                sensor = BMSPanelSensor(hass, raw_id, panel_name)
-                hass.data[DOMAIN]["panels"][raw_id] = sensor
-                add_cb([sensor])
-                _LOGGER.info("Added panel '%s' (%s)", raw_id, panel_name)
-            except Exception as exc:  # noqa: BLE001
-                # add_cb может быть stale (после unload). Чистим in-memory чтобы
-                # не получить zombie sensor record. Storage не трогаем —
-                # при следующей загрузке sensor создастся из meta.
-                _LOGGER.warning("Failed to add sensor via callback (will retry on next setup): %s", exc)
-                hass.data[DOMAIN]["panels"].pop(raw_id, None)
-        else:
-            _LOGGER.warning("add_panel '%s' до sensor-platform — будет создан при следующей загрузке", raw_id)
+                await _save()
+            except Exception:  # noqa: BLE001
+                pass
+            raise HomeAssistantError(
+                "Не удалось создать sensor для панели. Попробуйте перезагрузить "
+                f"интеграцию: Settings → Devices & Services → BMS Smart Panel → "
+                f"⋮ → Reload. Техническая причина: {exc}"
+            ) from exc
 
     async def remove_panel(call: ServiceCall) -> None:
         panel_id = call.data["panel_id"]
@@ -324,6 +349,15 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         if not re.match(SLUG_REGEX, raw_new_id):
             raise HomeAssistantError(f"Panel ID «{raw_new_id}» невалиден.")
 
+        # Та же гарантия что и в add_panel — без add_cb клон не появится.
+        add_cb = hass.data[DOMAIN].get("add_entities")
+        if not add_cb:
+            raise HomeAssistantError(
+                "Интеграция BMS Smart Panel установлена, но не настроена. "
+                "Откройте Settings → Devices & Services → Add Integration → "
+                "найдите «BMS Smart Panel» и нажмите Submit."
+            )
+
         cloned = copy.deepcopy(hass.data[DOMAIN]["configs"][src_id])
         if not copy_entities:
             # По умолчанию обнуляем entities — нельзя дублировать оборудование
@@ -343,16 +377,26 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(f"Не удалось сохранить клон: {exc}") from exc
 
         from .sensor import BMSPanelSensor
-        add_cb = hass.data[DOMAIN].get("add_entities")
-        if add_cb:
+        try:
+            sensor = BMSPanelSensor(hass, raw_new_id, new_name or raw_new_id)
+            hass.data[DOMAIN]["panels"][raw_new_id] = sensor
+            add_cb([sensor])
+            _LOGGER.info("Cloned '%s' → '%s'", src_id, raw_new_id)
+        except Exception as exc:  # noqa: BLE001
+            # add_cb stale — откатим storage чтобы не оставлять zombie
+            _LOGGER.exception("Failed to add cloned sensor")
+            hass.data[DOMAIN]["panels"].pop(raw_new_id, None)
+            hass.data[DOMAIN]["meta"].pop(raw_new_id, None)
+            hass.data[DOMAIN]["configs"].pop(raw_new_id, None)
             try:
-                sensor = BMSPanelSensor(hass, raw_new_id, new_name or raw_new_id)
-                hass.data[DOMAIN]["panels"][raw_new_id] = sensor
-                add_cb([sensor])
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.warning("Failed to add cloned sensor (will retry): %s", exc)
-                hass.data[DOMAIN]["panels"].pop(raw_new_id, None)
-        _LOGGER.info("Cloned '%s' → '%s'", src_id, raw_new_id)
+                await _save()
+            except Exception:  # noqa: BLE001
+                pass
+            raise HomeAssistantError(
+                "Не удалось создать sensor для клона. Перезагрузите интеграцию: "
+                f"Settings → Devices & Services → BMS Smart Panel → ⋮ → Reload. "
+                f"Техническая причина: {exc}"
+            ) from exc
 
     services = [
         (SERVICE_UPDATE_CONFIG, update_config, vol.Schema({
