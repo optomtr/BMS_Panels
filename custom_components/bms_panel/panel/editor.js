@@ -81,6 +81,11 @@ const TABS = [
 // ---------- Стили ----------
 
 const STYLES = `
+/* Inter font — same as APK. Falls back to system if blocked (e.g. self-hosted
+   HA without Internet). The preview will still render — just slightly different
+   metrics. Note: Google Fonts is permissible from HA frontend (no strict CSP). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&display=swap');
+
 :host {
   display: block;
   background: var(--primary-background-color);
@@ -564,300 +569,598 @@ input[type=range] { width: 100%; }
   .home-nav-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* ============ LIVE PREVIEW PANE ============ */
+/* ============ LIVE PREVIEW PANE ============
+ *
+ * Pixel-perfect preview of the BMS Panel APK. The CSS below is a
+ * 1:1 port of ~/bms-panel-app/index.html — the same web prototype the
+ * APK was built from. All sizes/colors/spacing match the real device.
+ *
+ * Class names are namespaced with `.pv-` (preview) so they cannot leak
+ * to the outer HA editor CSS.
+ *
+ * Panel container: .pv-panel — 480×480 square (true device size).
+ * No CSS transforms — what you see is what's on the panel.
+ *
+ * Background:
+ *   .pv-panel        — sub-screens (Light/Curtain/...) — uses blurred backdrop
+ *   .pv-panel.pv-home — Home screen — uses sharp background image, dimmed
+ *                       per `--pv-home-dim` (set inline from background_dim).
+ *   Background source: /bms_panel_static/background.png (built-in) or
+ *                       integrator-supplied URL via background_image_url.
+ */
 .preview-pane {
-  width: 520px;
+  width: 540px;
   flex-shrink: 0;
-  background: var(--card-background-color);
+  background: #0a0a0a;
   border-left: 1px solid var(--divider-color);
-  padding: 16px;
+  padding: 20px 14px;
   position: sticky;
   top: 56px;
   height: calc(100vh - 56px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  align-items: center;
 }
-.preview-pane.collapsed { width: 56px; padding: 16px 0; align-items: center; }
+.preview-pane.collapsed { width: 56px; padding: 16px 0; align-items: center; background: var(--card-background-color); }
 .preview-pane.collapsed .preview-body,
 .preview-pane.collapsed .preview-head-title,
 .preview-pane.collapsed .preview-screen-picker { display: none; }
 .preview-head {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--secondary-text-color);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: rgba(255,255,255,0.55);
+  width: 100%; max-width: 480px;
 }
 .preview-head .preview-head-title { flex: 1; }
-.preview-head .icon-btn { padding: 4px; border-radius: 6px; cursor: pointer; }
-.preview-head .icon-btn:hover { background: var(--secondary-background-color); }
+.preview-head .icon-btn {
+  padding: 4px; border-radius: 6px; cursor: pointer;
+  color: rgba(255,255,255,0.7);
+}
+.preview-head .icon-btn:hover { background: rgba(255,255,255,0.1); }
 .preview-screen-picker {
   display: flex; gap: 4px; flex-wrap: wrap; padding: 4px 0;
+  width: 100%; max-width: 480px;
 }
 .preview-screen-picker .ps-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 8px; font-size: 11px;
-  background: var(--secondary-background-color);
-  border: 1px solid var(--divider-color);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px; cursor: pointer;
-  color: var(--secondary-text-color);
+  color: rgba(255,255,255,0.8);
 }
 .preview-screen-picker .ps-btn ha-icon { --mdc-icon-size: 14px; pointer-events: none; }
 .preview-screen-picker .ps-btn span { pointer-events: none; }
 .preview-screen-picker .ps-btn.active {
-  background: var(--primary-color);
-  color: white; border-color: var(--primary-color);
+  background: #C99A55;
+  color: #1A1612; border-color: #C99A55;
 }
-.preview-screen-picker .ps-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+.preview-screen-picker .ps-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+.preview-body {
+  display: flex; justify-content: center; align-items: flex-start;
+  width: 100%;
+}
 
-/* The 480x480 panel mockup */
+/* ============ The actual 480×480 panel mockup ============ */
 .pv-panel {
   width: 480px; height: 480px;
   position: relative; overflow: hidden;
   isolation: isolate;
+  /* Visible if background fails to load — matches index.html fallback */
+  background: linear-gradient(135deg, #d8d4ce 0%, #aea99e 50%, #8a8378 100%);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
   border-radius: 14px;
-  background: linear-gradient(135deg, #2a2620 0%, #1A1612 50%, #0a0808 100%);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
   color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+               'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
-.pv-panel.scaled { transform: scale(0.95); transform-origin: top center; }
-.pv-panel * { box-sizing: border-box; }
+.pv-panel * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Blurred backdrop for sub-screens (same as index.html .panel::before) */
 .pv-panel::before {
   content: ''; position: absolute; inset: -30px;
-  background: radial-gradient(circle at 30% 20%, rgba(201,154,85,0.18), transparent 55%),
-              radial-gradient(circle at 80% 90%, rgba(60,40,30,0.4), transparent 60%);
-  z-index: 0;
+  background: var(--pv-bg-img, url('/bms_panel_static/background.png')) center/cover no-repeat;
+  filter: blur(18px); transform: scale(1.1);
+  z-index: -1;
 }
-.pv-panel.home-bg::before {
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.7) 100%),
-    radial-gradient(ellipse at 50% 30%, rgba(201,154,85,0.25), transparent 60%),
-    linear-gradient(135deg, #3a2a1a 0%, #1a1411 50%, #0a0807 100%);
+.pv-panel::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55); z-index: -1;
+}
+/* Home screen: sharp background, dim controlled by --pv-home-dim */
+.pv-panel.pv-home::before {
+  filter: none; transform: scale(1); inset: 0;
+}
+.pv-panel.pv-home::after {
+  background: rgba(0,0,0, var(--pv-home-dim, 0.3));
 }
 
-/* Header bar (sub-screens) */
+/* ============ Header (sub-screens) ============ */
 .pv-header {
   position: absolute; top: 0; left: 0; right: 0;
-  height: 64px; padding: 0 20px; z-index: 5;
+  height: 64px;
   display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; z-index: 3;
 }
 .pv-header-btn {
-  width: 44px; height: 44px;
+  width: 44px; height: 44px; position: relative;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; border-radius: 8px;
-  background: rgba(255,255,255,0.06);
+  cursor: pointer;
 }
-.pv-header-btn:hover { background: rgba(255,255,255,0.12); }
-.pv-header-btn:active { transform: scale(0.9); }
-.pv-header-title { font-size: 22px; font-weight: 500; }
+.pv-header-btn:active { opacity: 0.5; transform: scale(0.9); }
+.pv-header-btn svg {
+  width: 30px; height: 30px;
+  fill: none; stroke: #fff; stroke-width: 2.4;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.pv-header-title {
+  font-size: 24px; font-weight: 500; color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
 .pv-header-spacer { width: 44px; }
 .pv-divider {
   position: absolute; top: 64px; left: 0; right: 0;
-  height: 1px; background: rgba(255,255,255,0.12); z-index: 4;
+  height: 1px; background: rgba(255,255,255,0.15);
+  z-index: 2;
 }
 
-.pv-content {
+/* Scrollable list area below header (used by Light/Curtain) */
+.pv-list {
+  position: absolute; top: 65px; left: 0; right: 0; bottom: 0;
+  overflow-y: auto; overflow-x: hidden; padding-bottom: 16px;
+  z-index: 2;
+}
+.pv-list::-webkit-scrollbar { width: 0; }
+
+/* Empty state for sub-screens */
+.pv-empty {
   position: absolute; top: 64px; left: 0; right: 0; bottom: 0;
-  padding: 16px 20px; z-index: 2;
-  overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 30px;
+  color: rgba(255,255,255,0.55); font-size: 14px; line-height: 1.5; text-align: center;
+  z-index: 2;
 }
+.pv-empty ha-icon { --mdc-icon-size: 56px; opacity: 0.45; margin-bottom: 14px; }
+.pv-empty .hint { margin-top: 8px; font-size: 12px; opacity: 0.7; }
 
-/* Home screen */
-.pv-home-climate {
-  position: absolute; top: 28px; left: 0; right: 0;
-  display: flex; justify-content: space-around;
-  z-index: 4;
+/* ============ HOME ============ */
+.pv-panel .pv-home-climate {
+  position: absolute; top: 20px; left: 0; right: 0; height: 140px;
+  display: flex; justify-content: space-around; align-items: center;
+  padding: 0 40px; z-index: 2;
 }
 .pv-home-climate .cli {
-  display: flex; flex-direction: column; align-items: center;
+  display: flex; flex-direction: column; align-items: center; color: #fff;
 }
-.pv-home-climate .cli-icon { font-size: 24px; opacity: 0.85; }
+.pv-home-climate .cli-icon {
+  width: 50px; height: 50px;
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-home-climate .cli-icon svg, .pv-home-climate .cli-icon ha-icon {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.pv-home-climate .cli-icon ha-icon { --mdc-icon-size: 44px; color: #fff; }
 .pv-home-climate .cli-val {
-  font-size: 36px; font-weight: 200;
-  font-variant-numeric: tabular-nums;
+  font-size: 38px; font-weight: 300; line-height: 1;
+  margin-top: 6px; color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
-.pv-home-climate .cli-val .unit { font-size: 18px; font-weight: 300; margin-left: 2px; }
-.pv-home-climate .cli-lbl { font-size: 11px; opacity: 0.6; letter-spacing: 1px; }
-
+.pv-home-climate .cli-val .unit { font-size: 22px; font-weight: 300; margin-left: 2px; }
+.pv-home-climate .cli-lbl {
+  font-size: 14px; margin-top: 4px; font-weight: 400;
+  color: #fff; letter-spacing: 0.5px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.pv-home-band {
+  position: absolute; top: 160px; left: 0; right: 0;
+  height: 150px; background: rgba(20,18,16,0.82);
+  pointer-events: none; z-index: 1;
+}
 .pv-home-clock {
-  position: absolute; top: 180px; left: 0; right: 0; text-align: center; z-index: 3;
+  position: absolute; top: 180px; left: 0; right: 0; text-align: center; z-index: 2;
 }
 .pv-home-clock .t {
-  font-size: 80px; font-weight: 200;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 2px;
+  font-size: 68px; font-weight: 200; letter-spacing: 1px; line-height: 1;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5); font-variant-numeric: tabular-nums;
+  color: #fff;
 }
 .pv-home-clock .d {
-  font-size: 13px; opacity: 0.65;
-  margin-top: 4px; letter-spacing: 0.5px;
+  font-size: 17px; font-weight: 300; margin-top: 8px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6); color: #fff;
 }
-.pv-home-comfort {
-  position: absolute; top: 295px; left: 0; right: 0;
-  text-align: center; z-index: 3;
-  font-size: 12px; opacity: 0.75; padding: 0 30px;
+.pv-home-clock .comfort {
+  font-size: 13px; font-weight: 300; margin-top: 6px;
+  color: rgba(255,255,255,0.7); letter-spacing: 0.3px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 .pv-home-nav {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  height: 92px;
-  display: flex; align-items: center; justify-content: space-around;
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.65));
-  z-index: 4;
+  position: absolute; bottom: 28px; left: 0; right: 0;
+  display: flex; justify-content: space-around; padding: 0 8px; z-index: 2;
 }
 .pv-home-nav .nv {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  cursor: pointer; padding: 6px 8px; border-radius: 8px;
-  min-width: 60px;
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; width: 88px;
 }
-.pv-home-nav .nv:hover { background: rgba(255,255,255,0.06); }
-.pv-home-nav .nv:active { transform: scale(0.92); opacity: 0.65; }
-.pv-home-nav .nv ha-icon { --mdc-icon-size: 30px; color: rgba(255,255,255,0.95); pointer-events: none; }
-.pv-home-nav .nv .lbl { font-size: 11px; opacity: 0.85; letter-spacing: 0.3px; pointer-events: none; }
-.pv-menu-grid .tl ha-icon, .pv-menu-grid .tl .lb { pointer-events: none; }
-.pv-vent-grid .sp, .pv-vent-grid .sp * { }
-.pv-vent-grid .sp .pct { pointer-events: none; }
-.pv-cur-presets .pst { user-select: none; }
-.pv-climate-list .clm .scn { user-select: none; }
-.pv-light-row .pv-toggle .thumb { pointer-events: none; }
-.pv-light-row .pv-slider .fill, .pv-light-row .pv-slider .knob { pointer-events: none; }
-.pv-header-btn ha-icon { pointer-events: none; }
-
-/* Light screen */
-.pv-light-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 4px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.pv-home-nav .nv:active { opacity: 0.55; transform: scale(0.92); }
+.pv-home-nav .nv-icon {
+  width: 80px; height: 80px;
+  display: flex; align-items: center; justify-content: center;
 }
-.pv-light-row .lr-icon { --mdc-icon-size: 24px; color: #C99A55; }
-.pv-light-row.off .lr-icon { color: rgba(255,255,255,0.4); }
-.pv-light-row .lr-name { flex: 1; font-size: 15px; }
-.pv-light-row .lr-name .lr-state { font-size: 11px; opacity: 0.55; display: block; }
-.pv-light-row .pv-toggle {
-  width: 44px; height: 26px; border-radius: 13px;
-  background: rgba(120,120,128,0.4); position: relative; cursor: pointer;
-  transition: background 0.15s;
+.pv-home-nav .nv-icon ha-icon {
+  --mdc-icon-size: 56px; color: #fff;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  pointer-events: none;
 }
-.pv-light-row .pv-toggle.on { background: #C99A55; }
-.pv-light-row .pv-toggle .thumb {
-  width: 22px; height: 22px; background: #fff; border-radius: 50%;
-  position: absolute; top: 2px; left: 2px;
-  transition: transform 0.15s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.pv-light-row .pv-toggle.on .thumb { transform: translateX(18px); }
-.pv-light-row .pv-slider {
-  width: 110px; height: 5px; background: rgba(255,255,255,0.18);
-  border-radius: 3px; position: relative; cursor: pointer;
-}
-.pv-light-row .pv-slider .fill {
-  position: absolute; top: 0; left: 0; bottom: 0;
-  background: #C99A55; border-radius: 3px;
-}
-.pv-light-row .pv-slider .knob {
-  width: 14px; height: 14px; background: #fff; border-radius: 50%;
-  position: absolute; top: -4.5px; transform: translateX(-7px);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+.pv-home-nav .nv .lbl {
+  font-size: 15px; margin-top: 4px; font-weight: 400; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  pointer-events: none;
 }
 
-/* Curtain screen */
-.pv-cur-block { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.07); }
-.pv-cur-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.pv-cur-head ha-icon { --mdc-icon-size: 22px; color: rgba(255,255,255,0.85); }
-.pv-cur-head .nm { flex: 1; font-size: 15px; }
-.pv-cur-head .pos { font-size: 12px; opacity: 0.7; font-variant-numeric: tabular-nums; }
-.pv-cur-presets { display: flex; gap: 6px; flex-wrap: wrap; }
-.pv-cur-presets .pst {
-  flex: 1; min-width: 50px; text-align: center;
-  padding: 8px 4px; font-size: 12px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px; cursor: pointer;
-}
-.pv-cur-presets .pst:hover { background: rgba(255,255,255,0.12); }
-.pv-cur-presets .pst:active { transform: scale(0.95); }
-.pv-cur-presets .pst.active { background: rgba(201,154,85,0.25); border-color: #C99A55; }
-
-/* Climate (ac/heating/floor/convector) */
-.pv-climate-head {
-  text-align: center; margin-bottom: 14px;
-}
-.pv-climate-head .cur-t {
-  font-size: 56px; font-weight: 200;
-  font-variant-numeric: tabular-nums;
-}
-.pv-climate-head .cur-t .unit { font-size: 22px; opacity: 0.7; margin-left: 4px; }
-.pv-climate-head .lbl { font-size: 11px; opacity: 0.55; letter-spacing: 1px; }
-.pv-climate-list { display: flex; flex-direction: column; gap: 6px; }
-.pv-climate-list .clm {
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  display: flex; align-items: center; gap: 10px;
-  font-size: 14px;
-}
-.pv-climate-list .clm.off { opacity: 0.5; }
-.pv-climate-list .clm .nm { flex: 1; }
-.pv-climate-list .clm .scenes { display: flex; gap: 4px; }
-.pv-climate-list .clm .scn {
-  padding: 4px 8px; font-size: 11px; border-radius: 12px;
-  background: rgba(255,255,255,0.07); cursor: pointer;
-  border: 1px solid transparent;
-}
-.pv-climate-list .clm .scn:hover { background: rgba(255,255,255,0.14); }
-.pv-climate-list .clm .scn.active { background: rgba(201,154,85,0.25); border-color: #C99A55; color: #C99A55; }
-.pv-climate-list .clm .target { font-size: 13px; opacity: 0.75; font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; }
-
-/* Ventilation */
-.pv-vent-co2 {
-  text-align: center; margin-bottom: 16px;
-  padding: 12px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-}
-.pv-vent-co2 .v { font-size: 42px; font-weight: 200; font-variant-numeric: tabular-nums; }
-.pv-vent-co2 .v .unit { font-size: 14px; opacity: 0.7; margin-left: 4px; }
-.pv-vent-co2 .lbl { font-size: 11px; opacity: 0.55; letter-spacing: 1px; margin-top: 2px; }
-.pv-vent-co2.bad { background: rgba(244,67,54,0.15); }
-.pv-vent-co2.mid { background: rgba(255,152,0,0.15); }
-.pv-vent-co2.good { background: rgba(76,175,80,0.15); }
-.pv-vent-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-}
-.pv-vent-grid .sp {
-  padding: 14px 8px; text-align: center;
-  background: rgba(255,255,255,0.05);
-  border: 1.5px solid rgba(255,255,255,0.08);
-  border-radius: 10px; cursor: pointer;
-  font-size: 13px;
-}
-.pv-vent-grid .sp.active { background: rgba(201,154,85,0.2); border-color: #C99A55; color: #C99A55; }
-.pv-vent-grid .sp:hover { background: rgba(255,255,255,0.10); }
-.pv-vent-grid .sp .pct { font-size: 22px; font-weight: 300; display: block; margin-top: 4px; }
-
-/* Menu */
+/* ============ MENU (3×3 grid) ============ */
 .pv-menu-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  padding: 4px;
+  position: absolute; top: 86px; left: 20px; right: 20px; bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 12px; z-index: 2;
 }
 .pv-menu-grid .tl {
-  aspect-ratio: 1; border-radius: 12px;
   background: rgba(20,20,22,0.55);
   border: 1px solid rgba(255,255,255,0.08);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; gap: 6px;
+  border-radius: 16px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; padding: 6px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
-.pv-menu-grid .tl:hover { background: rgba(40,40,44,0.75); }
-.pv-menu-grid .tl:active { transform: scale(0.95); }
-.pv-menu-grid .tl ha-icon { --mdc-icon-size: 42px; color: #fff; }
-.pv-menu-grid .tl .lb { font-size: 12px; opacity: 0.85; }
-.pv-menu-grid .tl.disabled { opacity: 0.3; cursor: not-allowed; }
+.pv-menu-grid .tl:active { background: rgba(40,40,44,0.75); transform: scale(0.96); }
+.pv-menu-grid .tl.empty,
+.pv-menu-grid .tl.disabled {
+  opacity: 0.35; cursor: not-allowed;
+}
+.pv-menu-grid .tl-icon {
+  width: 54px; height: 54px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 6px;
+}
+.pv-menu-grid .tl-icon ha-icon {
+  --mdc-icon-size: 50px; color: #fff;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  pointer-events: none;
+}
+.pv-menu-grid .tl .lb {
+  font-size: 15px; font-weight: 400; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  text-align: center; line-height: 1.2;
+  pointer-events: none;
+}
 .pv-menu-grid .tl.tl-custom {
-  background: linear-gradient(135deg, rgba(58,91,255,0.18), rgba(20,20,22,0.55));
-  border-color: rgba(58,91,255,0.45);
+  border-color: rgba(201,154,85,0.45);
 }
-.pv-menu-grid .tl.tl-custom ha-icon { color: #cdd9ff; }
+.pv-menu-grid .tl.tl-custom .tl-icon ha-icon { color: #C99A55; }
+
+/* ============ CURTAIN ============ */
+.pv-curtain-device {
+  padding: 16px 22px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+.pv-curtain-device:last-child { border-bottom: none; }
+.pv-curtain-device .head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.pv-curtain-device .head ha-icon {
+  --mdc-icon-size: 24px; color: #fff;
+}
+.pv-curtain-device .head .nm { flex: 1; font-size: 17px; color: #fff; }
+.pv-curtain-device .head .pct {
+  font-size: 14px; color: rgba(255,255,255,0.7);
+  font-variant-numeric: tabular-nums;
+}
+.pv-curtain-device .slider-wrap {
+  position: relative; height: 60px; margin: 0 4px;
+}
+.pv-curtain-device .slider-track {
+  position: absolute; left: 0; right: 0; top: 32px;
+  height: 2px; background: rgba(255,255,255,0.45);
+}
+.pv-curtain-device .slider-handle {
+  position: absolute; top: 22px;
+  width: 22px; height: 22px;
+  background: #3a3a3c; border: 1.5px solid #fff;
+  border-radius: 50%;
+  cursor: pointer; transform: translateX(-50%); z-index: 2;
+  pointer-events: none;
+}
+.pv-curtain-device .btn-row {
+  display: flex; justify-content: space-between; gap: 10px; margin-top: 4px;
+}
+.pv-curtain-device .btn {
+  flex: 1; height: 36px;
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: 6px; background: transparent;
+  color: #fff; font-size: 15px; cursor: pointer;
+  font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-curtain-device .btn:active { background: rgba(255,255,255,0.15); }
+.pv-curtain-device .btn.active {
+  border-color: #fff; border-width: 1.5px;
+  background: rgba(255,255,255,0.08);
+}
+
+/* Status label под header (Light/Curtain) */
+.pv-status-label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 22px 12px;
+  font-size: 13px; color: rgba(255,255,255,0.55);
+  letter-spacing: 0.2px;
+}
+.pv-status-label .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  display: inline-block;
+}
+.pv-status-label .dot.on { background: #C99A55; box-shadow: 0 0 6px rgba(201,154,85,0.7); }
+
+/* ============ LIGHT ============ */
+.pv-light-device {
+  padding: 16px 22px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+.pv-light-device:last-child { border-bottom: none; }
+.pv-light-device .device-row {
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+  padding: 4px 0; margin: -4px 0;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.pv-light-device .device-row:active { background: rgba(255,255,255,0.06); }
+.pv-light-device .device-icon {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-light-device .device-icon ha-icon { --mdc-icon-size: 26px; color: #fff; }
+.pv-light-device.off .device-icon ha-icon { color: rgba(255,255,255,0.45); }
+.pv-light-device .device-name { flex: 1; font-size: 17px; color: #fff; }
+.pv-light-device.off .device-name { color: rgba(255,255,255,0.5); }
+.pv-light-device .color-swatch {
+  width: 32px; height: 24px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.2); cursor: pointer;
+  transition: opacity 0.15s;
+}
+.pv-light-device.off .color-swatch { opacity: 0.35; filter: saturate(0.4); }
+.pv-light-device .brightness { margin-top: 14px; }
+.pv-light-device .brightness-label {
+  font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 8px;
+}
+.pv-light-device .light-slider {
+  position: relative; height: 44px; cursor: pointer;
+}
+.pv-light-device .light-slider .track-bg {
+  position: absolute; left: 0; right: 0; top: 20px;
+  height: 5px; background: rgba(255,255,255,0.22);
+  border-radius: 3px;
+}
+.pv-light-device .light-slider .track-fill {
+  position: absolute; left: 0; top: 20px;
+  height: 5px; background: rgba(255,255,255,0.9);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.pv-light-device .light-slider .percent {
+  position: absolute; top: -3px;
+  font-size: 12px; color: #fff; font-weight: 500;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap;
+  border: 1px solid rgba(255,255,255,0.1);
+  pointer-events: none;
+}
+.pv-light-device .light-slider .handle {
+  position: absolute; top: 13px;
+  width: 22px; height: 22px; background: #fff;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  z-index: 2; pointer-events: none;
+}
+
+/* iOS-style toggle (used in light row). Matches index.html .toggle-sm */
+.pv-toggle-sm {
+  position: relative; width: 48px; height: 28px;
+  background: rgba(120,120,128,0.4);
+  border-radius: 14px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.pv-toggle-sm.on { background: rgba(255,255,255,0.85); }
+.pv-toggle-sm .thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 24px; height: 24px; background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: transform 0.15s, background 0.15s;
+}
+.pv-toggle-sm.on .thumb { transform: translateX(20px); background: #1a1a1a; }
+
+/* Master toggle in light/curtain header */
+.pv-header-btn.power-on svg { stroke: #C99A55; }
+
+/* ============ CLIMATE (AC/Heating/Floor/Convector) ============ */
+.pv-climate-temp {
+  position: absolute; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: center;
+  gap: 28px; z-index: 2;
+}
+.pv-climate-temp .tbtn {
+  width: 50px; height: 50px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.45);
+  background: transparent; color: #fff;
+  font-size: 26px; font-weight: 300;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: inherit;
+}
+.pv-climate-temp .tbtn:active { background: rgba(255,255,255,0.15); transform: scale(0.94); }
+.pv-climate-temp .tcenter {
+  display: flex; flex-direction: column; align-items: center; min-width: 200px;
+}
+.pv-climate-temp .tval {
+  font-weight: 200; line-height: 1; color: #fff;
+  font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+.pv-climate-temp .tval .deg { vertical-align: top; font-weight: 300; }
+.pv-climate-temp .tcur {
+  font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 10px;
+}
+/* Per-screen sizes — matches index.html exactly */
+.pv-climate.ac    .pv-climate-temp        { top: 95px; height: 150px; }
+.pv-climate.ac    .pv-climate-temp .tval  { font-size: 78px; }
+.pv-climate.ac    .pv-climate-temp .deg   { font-size: 36px; margin-left: 2px; }
+.pv-climate.heating .pv-climate-temp,
+.pv-climate.floor   .pv-climate-temp      { top: 90px; height: 220px; }
+.pv-climate.heating .pv-climate-temp .tval,
+.pv-climate.floor   .pv-climate-temp .tval{ font-size: 96px; }
+.pv-climate.heating .pv-climate-temp .deg,
+.pv-climate.floor   .pv-climate-temp .deg { font-size: 42px; margin-left: 4px; }
+.pv-climate.convector .pv-climate-temp     { top: 78px; height: 170px; }
+.pv-climate.convector .pv-climate-temp .tval { font-size: 80px; }
+.pv-climate.convector .pv-climate-temp .deg  { font-size: 36px; margin-left: 4px; }
+
+/* Climate scene/mode pills row */
+.pv-climate-section {
+  position: absolute; left: 22px; right: 22px; z-index: 2;
+}
+.pv-climate-section .label {
+  font-size: 12px; color: rgba(255,255,255,0.55);
+  letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;
+}
+.pv-climate-section .pills {
+  display: flex; gap: 8px;
+}
+.pv-pill {
+  flex: 1; height: 40px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px; background: transparent;
+  color: rgba(255,255,255,0.78);
+  font-size: 14px; font-weight: 400;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; font-family: inherit;
+}
+.pv-pill:active { background: rgba(255,255,255,0.1); }
+.pv-pill.active {
+  background: rgba(255,255,255,0.12);
+  border-color: #fff; border-width: 1.5px; color: #fff;
+}
+.pv-pill ha-icon {
+  --mdc-icon-size: 16px; pointer-events: none;
+  color: currentColor;
+}
+.pv-pill > span { pointer-events: none; }
+/* Section positions per screen */
+.pv-climate.ac .pv-climate-section.modes { top: 268px; }
+.pv-climate.ac .pv-climate-section.fan   { top: 368px; }
+.pv-climate.heating  .pv-climate-section.mode,
+.pv-climate.floor    .pv-climate-section.mode { bottom: 124px; }
+.pv-climate.convector .pv-climate-section.mode { bottom: 124px; }
+.pv-climate.convector .pv-climate-section.fan  { bottom: 28px; }
+
+/* Climate device list (when multiple binds) */
+.pv-climate-list {
+  position: absolute; left: 22px; right: 22px; bottom: 28px;
+  display: flex; flex-direction: column; gap: 4px; z-index: 2;
+  max-height: 96px; overflow-y: auto;
+}
+.pv-climate-list::-webkit-scrollbar { width: 0; }
+.pv-climate-list .row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: rgba(255,255,255,0.7);
+  padding: 2px 4px;
+}
+.pv-climate-list .row .nm { flex: 1; }
+.pv-climate-list .row .st { font-variant-numeric: tabular-nums; }
+.pv-climate-list .row.off { opacity: 0.5; }
+
+/* ============ VENTILATION ============ */
+.pv-vent-quality {
+  position: absolute; top: 78px; left: 0; right: 0; height: 240px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.pv-vent-quality .label {
+  font-size: 12px; color: rgba(255,255,255,0.5);
+  letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px;
+}
+.pv-vent-quality .value {
+  display: flex; align-items: flex-end; line-height: 1;
+}
+.pv-vent-quality .num {
+  font-size: 92px; font-weight: 200; color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+.pv-vent-quality .unit {
+  font-size: 24px; font-weight: 300;
+  color: rgba(255,255,255,0.6);
+  margin-left: 6px; margin-bottom: 10px;
+}
+.pv-vent-quality .status {
+  margin-top: 14px; padding: 5px 16px;
+  border-radius: 14px; font-size: 14px; font-weight: 500;
+  border: 1.5px solid; letter-spacing: 0.3px;
+}
+.pv-vent-quality .status.good     { color: #6ce0a3; border-color: rgba(108,224,163,0.7); }
+.pv-vent-quality .status.moderate { color: #ffd166; border-color: rgba(255,209,102,0.7); }
+.pv-vent-quality .status.poor     { color: #ff7a7a; border-color: rgba(255,122,122,0.7); }
+
+/* Vent fan speed pills — in BMS they're 2×2 grid (after VENT-FIXES) */
+.pv-vent-fan {
+  position: absolute; left: 22px; right: 22px; bottom: 28px; z-index: 2;
+}
+.pv-vent-fan .label {
+  font-size: 12px; color: rgba(255,255,255,0.55);
+  letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;
+}
+.pv-vent-fan .grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.pv-vent-fan .pv-pill {
+  height: 44px; font-size: 14px;
+}
+
+/* ============ Background-URL field (Overview tab) ============ */
+.bg-url-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.bg-url-row input {
+  flex: 1;
+}
+.bg-url-thumb {
+  width: 56px; height: 42px; border-radius: 4px;
+  background: #1a1a1a center/cover no-repeat;
+  border: 1px solid var(--divider-color);
+  flex-shrink: 0;
+}
+.bg-url-reset {
+  padding: 6px 10px; border-radius: 6px;
+  border: 1px solid var(--divider-color);
+  background: var(--card-background-color);
+  color: var(--secondary-text-color);
+  cursor: pointer; font-size: 12px;
+  white-space: nowrap;
+}
+.bg-url-reset:hover { background: var(--secondary-background-color); }
+.bg-url-hint {
+  font-size: 11px; color: var(--secondary-text-color);
+  margin-top: 4px; line-height: 1.4;
+}
 
 /* ---- Custom Cards editor (in Screens tab) ---- */
 .cc-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -911,27 +1214,19 @@ input[type=range] { width: 100%; }
 .cc-lang-row { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: center; }
 .cc-lang-row .l { font-size: 12px; opacity: 0.7; text-transform: uppercase; }
 
-/* Empty hint when binding missing */
-.pv-empty {
-  text-align: center; padding: 40px 16px;
-  color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.5;
-}
-.pv-empty ha-icon { --mdc-icon-size: 48px; opacity: 0.4; display: block; margin: 0 auto 12px; }
 .pv-empty a { color: #C99A55; cursor: pointer; text-decoration: underline; }
-
 .pv-pending { opacity: 0.65; pointer-events: none; }
 
-@media (max-width: 1280px) {
-  .preview-pane { width: 56px; padding: 16px 0; align-items: center; }
+@media (max-width: 1320px) {
+  .preview-pane { width: 56px; padding: 16px 0; align-items: center; background: var(--card-background-color); }
   .preview-pane .preview-body,
   .preview-pane .preview-head-title,
   .preview-pane .preview-screen-picker { display: none; }
   .preview-pane.expanded {
-    width: 520px; padding: 16px; align-items: stretch;
+    width: 540px; padding: 20px 14px; align-items: center; background: #0a0a0a;
   }
-  .preview-pane.expanded .preview-body,
-  .preview-pane.expanded .preview-head-title,
-  .preview-pane.expanded .preview-screen-picker { display: revert; }
+  .preview-pane.expanded .preview-body { display: flex; }
+  .preview-pane.expanded .preview-head-title { display: block; }
   .preview-pane.expanded .preview-screen-picker { display: flex; }
 }
 @media (max-width: 900px) {
@@ -1090,6 +1385,7 @@ class BMSPanelEditor extends HTMLElement {
       screens:        attrs.screens || {},
       home_nav:       attrs.home_nav || ['light','curtain','menu','music','ac'],
       background_dim: attrs.background_dim ?? 30,
+      background_image_url: attrs.background_image_url ?? null,
       screen_timeout: attrs.screen_timeout ?? 30,
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
@@ -1493,6 +1789,24 @@ class BMSPanelEditor extends HTMLElement {
           <div class="val"><span id="bg-dim-val">${cfg.background_dim}</span>%</div>
         </div>
         ${this._inlineIssue(issues, i => i.anchor.key === 'background_dim')}
+
+        <div class="field-row" style="align-items: flex-start;">
+          <label>Фон панели</label>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <div class="bg-url-row">
+              <div class="bg-url-thumb" id="bg-url-thumb"
+                   style="background-image: url('${esc(cfg.background_image_url || '/bms_panel_static/background.png')}');"></div>
+              <input type="text" id="bg-url" class="control"
+                     placeholder="https://… или /local/myroom.jpg (пусто = встроенный)"
+                     value="${esc(cfg.background_image_url || '')}">
+              <button class="bg-url-reset" id="bg-url-reset" title="Использовать встроенный фон">Сброс</button>
+            </div>
+            <div class="bg-url-hint">
+              Пусто — встроенный luxury-фон. Для своего: URL картинки (https://…) или файл из папки HA <code>config/www/</code> (путь <code>/local/имя.jpg</code>). Панель скачает и закэширует (offline-ready).
+            </div>
+          </div>
+        </div>
+        ${this._inlineIssue(issues, i => i.anchor.key === 'background_image_url')}
 
         <div class="field-row">
           <label>Гасить экран через</label>
@@ -2008,6 +2322,35 @@ class BMSPanelEditor extends HTMLElement {
         cfg.background_dim = parseInt(e.target.value);
         $('#bg-dim-val').textContent = cfg.background_dim;
         this._markDirty();
+        // Live-update preview dim
+        this._softRefreshPreview();
+      };
+    }
+    // ---- background_image_url ----
+    const bgUrl = $('#bg-url');
+    const bgThumb = $('#bg-url-thumb');
+    const bgReset = $('#bg-url-reset');
+    const _applyBgThumb = (val) => {
+      if (!bgThumb) return;
+      bgThumb.style.backgroundImage = `url('${val || '/bms_panel_static/background.png'}')`;
+    };
+    if (bgUrl) {
+      bgUrl.oninput = e => {
+        const v = e.target.value.trim();
+        cfg.background_image_url = v || null;
+        _applyBgThumb(v);
+        this._markDirty();
+        this._softRefreshPreview();
+      };
+    }
+    if (bgReset) {
+      bgReset.onclick = () => {
+        cfg.background_image_url = null;
+        if (bgUrl) bgUrl.value = '';
+        _applyBgThumb('');
+        this._markDirty();
+        this._softRefreshPreview();
+        this._toast('Фон сброшен на встроенный', 'info', { duration: 1600 });
       };
     }
     const tmout = $('#timeout');
@@ -3176,21 +3519,43 @@ class BMSPanelEditor extends HTMLElement {
     return this._pvEmpty('Этот экран пока без превью');
   }
 
+  // Wrap panel content. Adds CSS vars for backgound (built-in or custom URL)
+  // and home-screen dim. Sub-screens use blurred backdrop, home uses sharp image.
   _pvWrap(inner, opts = {}) {
-    const cls = opts.home ? 'home-bg' : '';
-    return `<div class="pv-panel ${cls}">${inner}</div>`;
+    const cfg = opts.cfg || {};
+    const customBg = (cfg.background_image_url || '').trim();
+    const bgUrl = customBg || '/bms_panel_static/background.png';
+    const homeDim = ((cfg.background_dim ?? 30) / 100).toFixed(2);
+    const cls = opts.home ? 'pv-home' : 'pv-sub';
+    const climateCls = opts.climate ? `pv-climate ${esc(opts.climate)}` : '';
+    return `<div class="pv-panel ${cls} ${climateCls}"
+                 style="--pv-bg-img: url('${esc(bgUrl)}'); --pv-home-dim: ${homeDim};">${inner}</div>`;
   }
 
-  _pvHeader(title) {
+  // Back-arrow chevron header. Inline SVG (no ha-icon — to match APK look).
+  _pvHeader(title, opts = {}) {
+    const rightBtn = opts.rightBtn || `<div class="pv-header-spacer"></div>`;
     return `
       <div class="pv-header">
         <div class="pv-header-btn" data-pv-action="nav-home" title="На главный">
-          <ha-icon icon="mdi:chevron-left" style="--mdc-icon-size:28px; color:#fff;"></ha-icon>
+          <svg viewBox="0 0 32 32"><path d="M20 6 L10 16 L20 26"/></svg>
         </div>
         <div class="pv-header-title">${esc(title)}</div>
-        <div class="pv-header-spacer"></div>
+        ${rightBtn}
       </div>
       <div class="pv-divider"></div>`;
+  }
+
+  // "Power" toggle button in header (right side). Used by Light/Curtain/Climate.
+  _pvHeaderPower(action, eid, isOn) {
+    const cls = isOn ? 'power-on' : '';
+    return `
+      <div class="pv-header-btn ${cls}" data-pv-action="${esc(action)}" data-entity="${esc(eid || '')}" title="Питание">
+        <svg viewBox="0 0 32 32">
+          <path d="M16 4 v12"/>
+          <path d="M9 9 a10 10 0 1 0 14 0"/>
+        </svg>
+      </div>`;
   }
 
   _pvEmpty(msg, hint = '') {
@@ -3198,7 +3563,7 @@ class BMSPanelEditor extends HTMLElement {
       <div class="pv-empty">
         <ha-icon icon="mdi:link-variant-off"></ha-icon>
         <div>${esc(msg)}</div>
-        ${hint ? `<div style="margin-top:8px; font-size:11px; opacity:0.7;">${esc(hint)}</div>` : ''}
+        ${hint ? `<div class="hint">${esc(hint)}</div>` : ''}
       </div>`;
   }
 
@@ -3222,16 +3587,17 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   // ============ HOME ============
+  // Layout matches index.html #screen-home (climate band 20..160, dark band 160..310,
+  // clock at 180, nav at bottom with 80px icons).
   _pvHome(cfg) {
     const tempEid = cfg.entities?.temp_sensor;
     const humEid = cfg.entities?.humidity_sensor;
     const tempState = tempEid ? this._pvEntState(tempEid) : null;
     const humState = humEid ? this._pvEntState(humEid) : null;
     const tempVal = tempState && tempState.state !== 'unavailable' && tempState.state !== 'unknown'
-      ? Math.round(parseFloat(tempState.state)) : '–';
+      ? Math.round(parseFloat(tempState.state)) : '24';
     const humVal = humState && humState.state !== 'unavailable' && humState.state !== 'unknown'
-      ? Math.round(parseFloat(humState.state)) : '–';
-    const tempUnit = tempState?.attributes?.unit_of_measurement || '°C';
+      ? Math.round(parseFloat(humState.state)) : '45';
 
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
@@ -3240,49 +3606,61 @@ class BMSPanelEditor extends HTMLElement {
     const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
     const dateStr = `${weekdays[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
 
-    // Comfort
+    // Comfort message — соответствует APK
     let comfortMsg = 'Все системы в норме';
-    if (tempVal !== '–') {
-      if (tempVal < 19) comfortMsg = 'Дома прохладно — может включить отопление?';
-      else if (tempVal > 27) comfortMsg = 'Дома жарко — кондиционер?';
-      else comfortMsg = 'Дома тепло и комфортно';
+    const tNum = parseFloat(tempVal);
+    if (!isNaN(tNum)) {
+      if (tNum < 19) comfortMsg = 'Дома прохладно';
+      else if (tNum > 27) comfortMsg = 'Дома жарко';
+      else comfortMsg = 'Дома тепло, влажность в норме';
     }
 
     const nav = (cfg.home_nav || []).slice(0, 5);
-
     const navHtml = nav.map(key => {
       if (!key) return `<div class="nv" style="visibility:hidden;"></div>`;
       const m = SCREEN_META[key];
       const isMenu = key === 'menu';
       const icon = isMenu ? 'mdi:view-grid' : (m?.icon || 'mdi:help-circle-outline');
-      const lbl = isMenu ? 'Меню' : (m?.ru || key);
+      // APK использует «Ещё» для menu — соответствуем для нижней nav
+      const lbl = isMenu ? 'Ещё' : (m?.ru || key);
       return `
         <div class="nv" data-pv-action="nav-to" data-target="${esc(key)}">
-          <ha-icon icon="${icon}"></ha-icon>
+          <div class="nv-icon"><ha-icon icon="${icon}"></ha-icon></div>
           <div class="lbl">${esc(lbl)}</div>
         </div>`;
     }).join('');
 
+    // Inline SVG icons matching index.html (thermometer + droplet)
+    const tempIcon = `<svg viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" width="44" height="44">
+      <path d="M28 8a6 6 0 0 1 12 0v32a10 10 0 1 1-12 0V8z"/>
+      <circle cx="34" cy="46" r="5" fill="white"/>
+      <path d="M34 18v22"/>
+    </svg>`;
+    const humIcon = `<svg viewBox="0 0 64 64" fill="white" width="44" height="44">
+      <path d="M32 4c-2 8-18 22-18 36a18 18 0 1 0 36 0c0-14-16-28-18-36z"/>
+    </svg>`;
+
     return this._pvWrap(`
       <div class="pv-home-climate">
         <div class="cli">
-          <ha-icon class="cli-icon" icon="mdi:thermometer" style="--mdc-icon-size:24px; color:#fff;"></ha-icon>
-          <div class="cli-val">${tempVal}<span class="unit">${esc(tempUnit)}</span></div>
-          <div class="cli-lbl">ТЕМПЕРАТУРА</div>
+          <div class="cli-icon">${tempIcon}</div>
+          <div class="cli-val">${tempVal}°<span class="unit">C</span></div>
+          <div class="cli-lbl">Temperature</div>
         </div>
         <div class="cli">
-          <ha-icon class="cli-icon" icon="mdi:water-percent" style="--mdc-icon-size:24px; color:#fff;"></ha-icon>
+          <div class="cli-icon">${humIcon}</div>
           <div class="cli-val">${humVal}<span class="unit">%</span></div>
-          <div class="cli-lbl">ВЛАЖНОСТЬ</div>
+          <div class="cli-lbl">Humidity</div>
         </div>
       </div>
+      <div class="pv-home-band"></div>
       <div class="pv-home-clock">
         <div class="t" data-pv-clock>${hh}:${mm}</div>
         <div class="d">${dateStr}</div>
+        <div class="comfort">${esc(comfortMsg)}</div>
       </div>
-      <div class="pv-home-comfort">${esc(comfortMsg)}</div>
       <div class="pv-home-nav">${navHtml}</div>
-    `, { home: true });
+    `, { home: true, cfg });
   }
 
   _ensurePreviewClock() {
@@ -3297,19 +3675,19 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   // ============ MENU ============
-  // Системные плитки (Свет/Шторы/AC/...) + кастомные плитки интегратора.
-  // Кастомные показываются ПОСЛЕ системных в порядке как заданы в config.
+  // 3×3 grid из системных + кастомных tiles. Соответствует index.html #screen-menu.
   _pvMenu(cfg) {
     const enabled = this._enabledScreens(cfg);
-    const systemTiles = ['light','curtain','music','ac','heating','floor','convector','ventilation'];
+    // Только включённые системные — выключенные не светятся в реальном APK
+    const systemTiles = ['light','curtain','music','ac','heating','floor','convector','ventilation']
+      .filter(k => enabled.includes(k));
     const customCards = Array.isArray(cfg.custom_cards) ? cfg.custom_cards : [];
 
     const sysHtml = systemTiles.map(key => {
       const m = SCREEN_META[key];
-      const on = enabled.includes(key);
       return `
-        <div class="tl ${!on?'disabled':''}" ${on?`data-pv-action="nav-to" data-target="${key}"`:''}>
-          <ha-icon icon="${m.icon}"></ha-icon>
+        <div class="tl" data-pv-action="nav-to" data-target="${key}">
+          <div class="tl-icon"><ha-icon icon="${m.icon}"></ha-icon></div>
           <div class="lb">${esc(m.ru)}</div>
         </div>`;
     }).join('');
@@ -3320,99 +3698,155 @@ class BMSPanelEditor extends HTMLElement {
       return `
         <div class="tl tl-custom" data-pv-action="custom-card" data-card-id="${esc(card.id)}"
              title="${esc(card.action?.type || '')}">
-          <ha-icon icon="${esc(icon)}"></ha-icon>
+          <div class="tl-icon"><ha-icon icon="${esc(icon)}"></ha-icon></div>
           <div class="lb">${esc(label)}</div>
         </div>`;
     }).join('');
 
-    // Заполнители, чтобы grid выглядел опрятно если плиток < 9.
+    // Pad до 9 ячеек чтобы grid выглядел чисто
     const total = systemTiles.length + customCards.length;
-    const pad = Math.max(0, 9 - (total % 9 || 9)) % 9;
-    const padHtml = '<div class="tl disabled" style="visibility:hidden;"></div>'.repeat(pad);
+    const padCount = Math.max(0, 9 - total);
+    const padHtml = '<div class="tl empty"></div>'.repeat(Math.min(padCount, 9));
 
     return this._pvWrap(`
-      ${this._pvHeader('Меню')}
-      <div class="pv-content">
-        <div class="pv-menu-grid">${sysHtml}${customHtml}${padHtml}</div>
-      </div>
-    `);
+      ${this._pvHeader('Управление')}
+      <div class="pv-menu-grid">${sysHtml}${customHtml}${padHtml}</div>
+    `, { cfg });
   }
 
   // ============ LIGHT ============
+  // index.html: вертикальный list с device-row (icon+name+swatch+toggle)
+  // и под ним brightness slider если включена и поддерживает.
+  // Master power toggle в header — toggles ВСЕ лампы.
   _pvLight(cfg) {
     const ids = Array.isArray(cfg.entities?.lights) ? cfg.entities.lights : [];
+    const anyOn = ids.some(eid => this._pvEntState(eid)?.state === 'on');
+    const headerRight = ids.length
+      ? this._pvHeaderPower('light-master', '', anyOn)
+      : `<div class="pv-header-spacer"></div>`;
     if (!ids.length) {
-      return this._pvWrap(`${this._pvHeader('Свет')}<div class="pv-content">${this._pvEmpty('Лампы не привязаны', 'Откройте «Устройства» и выберите свет')}</div>`);
+      return this._pvWrap(`
+        ${this._pvHeader('Свет', { rightBtn: headerRight })}
+        ${this._pvEmpty('Лампы не привязаны', 'Откройте «Устройства» и выберите свет')}
+      `, { cfg });
     }
     const rows = ids.map(eid => {
       const s = this._pvEntState(eid);
-      if (!s) return `<div class="pv-light-row off"><span class="lr-name">${esc(eid)} <span class="lr-state">недоступно</span></span></div>`;
+      if (!s) return `
+        <div class="pv-light-device off">
+          <div class="device-row">
+            <div class="device-icon"><ha-icon icon="mdi:lightbulb-outline"></ha-icon></div>
+            <div class="device-name">${esc(eid)} (недоступно)</div>
+          </div>
+        </div>`;
       const isOn = s.state === 'on';
-      const brightnessPct = isOn && s.attributes.brightness
-        ? Math.round((s.attributes.brightness / 255) * 100)
-        : (isOn ? 100 : 0);
       const supportsBrightness = (s.attributes.supported_color_modes || []).some(
         m => ['brightness','color_temp','hs','rgb','rgbw','rgbww','xy'].includes(m)
       ) || s.attributes.brightness !== undefined;
+      const brightnessPct = isOn && s.attributes.brightness
+        ? Math.max(1, Math.round((s.attributes.brightness / 255) * 100))
+        : (isOn ? 100 : 0);
       const fname = s.attributes.friendly_name || eid;
+      const supportsColor = (s.attributes.supported_color_modes || []).some(
+        m => ['hs','rgb','rgbw','rgbww','xy'].includes(m)
+      );
+      const rgb = s.attributes.rgb_color;
+      const swatch = rgb ? `rgb(${rgb[0]},${rgb[1]},${rgb[2]})` : '#fff5e0';
       return `
-        <div class="pv-light-row ${isOn?'':'off'}">
-          <ha-icon class="lr-icon" icon="${isOn?'mdi:lightbulb-on':'mdi:lightbulb-outline'}"></ha-icon>
-          <div class="lr-name">${esc(fname)}<span class="lr-state">${isOn ? (supportsBrightness ? brightnessPct + '%' : 'вкл') : 'выкл'}</span></div>
+        <div class="pv-light-device ${isOn?'':'off'}">
+          <div class="device-row" data-pv-action="light-toggle" data-entity="${esc(eid)}">
+            <div class="device-icon">
+              <ha-icon icon="${isOn?'mdi:lightbulb-on':'mdi:lightbulb-outline'}"></ha-icon>
+            </div>
+            <div class="device-name">${esc(fname)}</div>
+            ${supportsColor ? `<div class="color-swatch" style="background:${swatch};"></div>` : ''}
+            <div class="pv-toggle-sm ${isOn?'on':''}">
+              <div class="thumb"></div>
+            </div>
+          </div>
           ${supportsBrightness && isOn ? `
-            <div class="pv-slider" data-pv-action="light-brightness" data-entity="${esc(eid)}">
-              <div class="fill" style="width:${brightnessPct}%"></div>
-              <div class="knob" style="left:${brightnessPct}%"></div>
+            <div class="brightness">
+              <div class="brightness-label">Яркость · ${brightnessPct}%</div>
+              <div class="light-slider" data-pv-action="light-brightness" data-entity="${esc(eid)}">
+                <div class="track-bg"></div>
+                <div class="track-fill" style="width:${brightnessPct}%"></div>
+                <div class="percent" style="left:${brightnessPct}%">${brightnessPct}%</div>
+                <div class="handle" style="left:${brightnessPct}%"></div>
+              </div>
             </div>
           ` : ''}
-          <div class="pv-toggle ${isOn?'on':''}" data-pv-action="light-toggle" data-entity="${esc(eid)}">
-            <div class="thumb"></div>
-          </div>
         </div>`;
     }).join('');
+    const onCount = ids.filter(eid => this._pvEntState(eid)?.state === 'on').length;
+    const statusText = onCount === 0 ? 'Все выключены'
+      : onCount === ids.length ? 'Все включены'
+      : `Включено ${onCount} из ${ids.length}`;
+
     return this._pvWrap(`
-      ${this._pvHeader('Свет')}
-      <div class="pv-content">${rows}</div>
-    `);
+      ${this._pvHeader('Свет', { rightBtn: headerRight })}
+      <div class="pv-list">
+        <div class="pv-status-label">
+          <span class="dot ${onCount > 0 ? 'on' : ''}"></span>${esc(statusText)}
+        </div>
+        ${rows}
+      </div>
+    `, { cfg });
   }
 
   // ============ CURTAIN ============
+  // index.html #screen-curtain: каждый device с slider-track и Open/Close/50% кнопками.
   _pvCurtain(cfg) {
     const ids = Array.isArray(cfg.entities?.curtains) ? cfg.entities.curtains : [];
+    const anyOpen = ids.some(eid => {
+      const st = this._pvEntState(eid);
+      const p = st?.attributes?.current_position;
+      return (typeof p === 'number' ? p > 5 : st?.state === 'open');
+    });
+    const headerRight = ids.length
+      ? this._pvHeaderPower('curtain-master', '', anyOpen)
+      : `<div class="pv-header-spacer"></div>`;
     if (!ids.length) {
-      return this._pvWrap(`${this._pvHeader('Шторы')}<div class="pv-content">${this._pvEmpty('Шторы не привязаны','Откройте «Устройства» и добавьте cover.*')}</div>`);
+      return this._pvWrap(`
+        ${this._pvHeader('Шторы', { rightBtn: headerRight })}
+        ${this._pvEmpty('Шторы не привязаны', 'Откройте «Устройства» и добавьте cover.*')}
+      `, { cfg });
     }
-    const presets = [0, 25, 50, 75, 100];
     const blocks = ids.map(eid => {
       const s = this._pvEntState(eid);
-      if (!s) return `<div class="pv-cur-block"><div class="pv-cur-head"><span class="nm">${esc(eid)}</span><span class="pos">недоступно</span></div></div>`;
-      const pos = s.attributes.current_position;
-      const posVal = typeof pos === 'number' ? pos : (s.state === 'open' ? 100 : 0);
-      const fname = s.attributes.friendly_name || eid;
+      const fname = s?.attributes?.friendly_name || eid;
+      const pos = s?.attributes?.current_position;
+      const posVal = typeof pos === 'number' ? pos : (s?.state === 'open' ? 100 : 0);
+      const offline = !s;
       return `
-        <div class="pv-cur-block">
-          <div class="pv-cur-head">
+        <div class="pv-curtain-device ${offline?'off':''}">
+          <div class="head">
             <ha-icon icon="mdi:curtains"></ha-icon>
             <span class="nm">${esc(fname)}</span>
-            <span class="pos">${posVal}%</span>
+            <span class="pct">${offline ? '—' : posVal + '%'}</span>
           </div>
-          <div class="pv-cur-presets">
-            ${presets.map(p => `
-              <div class="pst ${Math.abs(posVal - p) < 6 ? 'active' : ''}"
-                   data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="${p}">
-                ${p === 0 ? 'Закр' : p === 100 ? 'Откр' : p+'%'}
-              </div>
-            `).join('')}
+          <div class="slider-wrap">
+            <div class="slider-track"></div>
+            <div class="slider-handle" style="left:${posVal}%"></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn ${posVal <= 5 ? 'active' : ''}"
+                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="0">Закрыть</button>
+            <button class="btn ${posVal > 5 && posVal < 95 ? 'active' : ''}"
+                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="50">50%</button>
+            <button class="btn ${posVal >= 95 ? 'active' : ''}"
+                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="100">Открыть</button>
           </div>
         </div>`;
     }).join('');
     return this._pvWrap(`
-      ${this._pvHeader('Шторы')}
-      <div class="pv-content">${blocks}</div>
-    `);
+      ${this._pvHeader('Шторы', { rightBtn: headerRight })}
+      <div class="pv-list">${blocks}</div>
+    `, { cfg });
   }
 
   // ============ CLIMATE (ac/heating/floor/convector) ============
+  // 1-в-1 с index.html: большая температура цифрой по центру, ± кнопки слева/справа,
+  // под ними секции Mode / Scenes (3 сцены) / Fan (для AC и Convector).
   _pvClimate(cfg, screen) {
     const bindKeyMap = { ac: 'acs', heating: 'heatings', floor: 'floors', convector: 'convectors' };
     const tempKeyMap = {
@@ -3422,106 +3856,159 @@ class BMSPanelEditor extends HTMLElement {
     const ids = Array.isArray(cfg.entities?.[bindKeyMap[screen]]) ? cfg.entities[bindKeyMap[screen]] : [];
     const meta = SCREEN_META[screen];
 
+    // Power-on state — на основе первого климат-entity
+    const firstSt = ids.length ? this._pvEntState(ids[0]) : null;
+    const isOff = !firstSt || firstSt.state === 'off' || firstSt.state === 'unavailable';
+    const headerRight = ids.length
+      ? this._pvHeaderPower(`climate-power`, ids[0], !isOff)
+      : `<div class="pv-header-spacer"></div>`;
+
     if (!ids.length) {
-      return this._pvWrap(`${this._pvHeader(meta.ru)}<div class="pv-content">${this._pvEmpty('Не привязано',`Выберите термостаты в «Устройства → ${meta.ru}»`)}</div>`);
+      return this._pvWrap(`
+        ${this._pvHeader(meta.ru, { rightBtn: headerRight })}
+        ${this._pvEmpty('Не привязано', `Выберите термостаты в «Устройства → ${meta.ru}»`)}
+      `, { cfg, climate: screen });
     }
 
-    // Current temp display
+    // Target/current temp (берём с первого entity или из current_temp_sensor)
     const tempEid = cfg.entities?.[tempKeyMap[screen]];
     let curTemp = null;
     if (tempEid) {
       const ts = this._pvEntState(tempEid);
       if (ts && ts.state !== 'unavailable' && ts.state !== 'unknown') curTemp = parseFloat(ts.state);
-    } else if (ids.length) {
-      // Fall back to first climate's current_temperature attribute
-      const cs = this._pvEntState(ids[0]);
-      if (cs && cs.attributes.current_temperature !== undefined) curTemp = cs.attributes.current_temperature;
     }
+    if (curTemp === null && firstSt?.attributes?.current_temperature !== undefined) {
+      curTemp = firstSt.attributes.current_temperature;
+    }
+    const target = firstSt?.attributes?.temperature ?? 22;
+    const targetStr = Math.round(target);
 
-    // Scenes table (target temperature for each)
+    // Сцены — 3 для climate (без четвёртой "Manual" — Mirabror фиксировал)
     const SCENES = screen === 'ac'
-      ? [{ key:'turbo', lbl:'Турбо', t:18, mode:'cool', icon:'mdi:snowflake' },
+      ? [{ key:'turbo',   lbl:'Турбо',   t:18, mode:'cool', icon:'mdi:snowflake' },
          { key:'comfort', lbl:'Комфорт', t:22, mode:'cool', icon:'mdi:sofa-outline' },
-         { key:'eco', lbl:'Эко', t:25, mode:'cool', icon:'mdi:leaf' }]
-      : [{ key:'turbo', lbl:'Турбо', t:24, mode:'heat', icon:'mdi:fire' },
+         { key:'eco',     lbl:'Эко',     t:25, mode:'cool', icon:'mdi:leaf' }]
+      : [{ key:'turbo',   lbl:'Турбо',   t:24, mode:'heat', icon:'mdi:fire' },
          { key:'comfort', lbl:'Комфорт', t:22, mode:'heat', icon:'mdi:sofa-outline' },
-         { key:'eco', lbl:'Эко', t:19, mode:'heat', icon:'mdi:leaf' }];
+         { key:'eco',     lbl:'Эко',     t:19, mode:'heat', icon:'mdi:leaf' }];
+    const activeScene = !isOff ? SCENES.find(sc =>
+      Math.abs((target || -999) - sc.t) < 0.5 && (firstSt.state === sc.mode || firstSt.state === 'auto')
+    )?.key : null;
 
-    const list = ids.map(eid => {
-      const s = this._pvEntState(eid);
-      if (!s) return `<div class="clm off"><span class="nm">${esc(eid)}</span><span class="target">офлайн</span></div>`;
-      const fname = s.attributes.friendly_name || eid;
-      const isOff = s.state === 'off' || s.state === 'unavailable';
-      const target = s.attributes.temperature;
-      // Detect active scene by matching target temp + mode
-      const activeScene = !isOff ? SCENES.find(sc =>
-        Math.abs((target || -999) - sc.t) < 0.5 && (s.state === sc.mode || s.state === 'auto')
-      )?.key : null;
-      return `
-        <div class="clm ${isOff?'off':''}">
-          <span class="nm">${esc(fname)}</span>
-          <span class="scenes">
-            ${SCENES.map(sc => `
-              <span class="scn ${activeScene === sc.key ? 'active' : ''}"
-                    data-pv-action="climate-scene" data-entity="${esc(eid)}"
-                    data-temp="${sc.t}" data-mode="${sc.mode}">
-                ${esc(sc.lbl)}
-              </span>
-            `).join('')}
-          </span>
-          <span class="target">${target !== undefined ? target+'°' : '—'}</span>
-        </div>`;
-    }).join('');
+    // Fan speeds — только AC и Convector
+    const FAN_SPEEDS = ['auto', 'low', 'medium', 'high'];
+    const curFan = firstSt?.attributes?.fan_mode || 'auto';
+    const fanHtml = (screen === 'ac' || screen === 'convector') ? `
+      <div class="pv-climate-section fan">
+        <div class="label">${screen === 'ac' ? 'Fan speed' : 'Скорость вентилятора'}</div>
+        <div class="pills">
+          ${FAN_SPEEDS.map(f => `
+            <button class="pv-pill ${curFan === f ? 'active' : ''} ${isOff?'disabled':''}"
+                    data-pv-action="climate-fan" data-entity="${esc(ids[0])}" data-fan="${f}">
+              <span>${f === 'auto' ? 'Auto' : f === 'low' ? 'Low' : f === 'medium' ? 'Med' : 'High'}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>` : '';
+
+    const isAC = screen === 'ac';
+    const modesLabel = isAC ? 'Mode' : 'Сцена';
+    const scenesSectionCls = isAC ? 'modes' : 'mode';
+
+    // Список дополнительных entities (если ids.length > 1) — выводим компактно
+    const extraList = ids.length > 1 ? `
+      <div class="pv-climate-list">
+        ${ids.slice(1).map(eid => {
+          const s = this._pvEntState(eid);
+          const off = !s || s.state === 'off' || s.state === 'unavailable';
+          return `<div class="row ${off?'off':''}">
+            <span class="nm">${esc(s?.attributes?.friendly_name || eid)}</span>
+            <span class="st">${off ? 'выкл' : (s.attributes.temperature ?? '?') + '°'}</span>
+          </div>`;
+        }).join('')}
+      </div>` : '';
 
     return this._pvWrap(`
-      ${this._pvHeader(meta.ru)}
-      <div class="pv-content">
-        ${curTemp !== null ? `
-          <div class="pv-climate-head">
-            <div class="cur-t">${curTemp.toFixed(1)}<span class="unit">°C</span></div>
-            <div class="lbl">В КОМНАТЕ</div>
-          </div>` : ''}
-        <div class="pv-climate-list">${list}</div>
+      ${this._pvHeader(meta.ru, { rightBtn: headerRight })}
+      <div class="pv-climate-temp ${isOff?'disabled':''}">
+        <button class="tbtn" data-pv-action="climate-temp" data-entity="${esc(ids[0])}" data-delta="-1">−</button>
+        <div class="tcenter">
+          <div class="tval">${targetStr}<span class="deg">°C</span></div>
+          <div class="tcur">Current: ${curTemp !== null ? curTemp.toFixed(1) : '—'}°C</div>
+        </div>
+        <button class="tbtn" data-pv-action="climate-temp" data-entity="${esc(ids[0])}" data-delta="1">+</button>
       </div>
-    `);
+      <div class="pv-climate-section ${scenesSectionCls}">
+        <div class="label">${modesLabel}</div>
+        <div class="pills">
+          ${SCENES.map(sc => `
+            <button class="pv-pill ${activeScene === sc.key ? 'active' : ''} ${isOff?'disabled':''}"
+                    data-pv-action="climate-scene" data-entity="${esc(ids[0])}"
+                    data-temp="${sc.t}" data-mode="${sc.mode}">
+              <ha-icon icon="${sc.icon}"></ha-icon><span>${esc(sc.lbl)}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      ${fanHtml}
+      ${extraList}
+    `, { cfg, climate: screen });
   }
 
   // ============ VENTILATION ============
+  // Air quality CO₂ display + 2×2 fan speed grid (после VENT-FIXES в APK).
   _pvVentilation(cfg) {
     const fanIds = Array.isArray(cfg.entities?.ventilation_fans) ? cfg.entities.ventilation_fans : [];
+    const firstFan = fanIds.length ? this._pvEntState(fanIds[0]) : null;
+    const fanOn = firstFan && firstFan.state !== 'off' && firstFan.state !== 'unavailable';
+    const headerRight = fanIds.length
+      ? this._pvHeaderPower('vent-power', fanIds[0], fanOn)
+      : `<div class="pv-header-spacer"></div>`;
+
     if (!fanIds.length) {
-      return this._pvWrap(`${this._pvHeader('Вентиляция')}<div class="pv-content">${this._pvEmpty('Вентиляторы не привязаны','«Устройства» → Вентиляция')}</div>`);
+      return this._pvWrap(`
+        ${this._pvHeader('Вентиляция', { rightBtn: headerRight })}
+        ${this._pvEmpty('Вентиляторы не привязаны', '«Устройства» → Вентиляция')}
+      `, { cfg });
     }
+
     const co2Eid = cfg.entities?.co2_sensor;
     const co2State = co2Eid ? this._pvEntState(co2Eid) : null;
     const co2Val = co2State && co2State.state !== 'unavailable' && co2State.state !== 'unknown'
-      ? Math.round(parseFloat(co2State.state)) : null;
-    const co2Cls = co2Val == null ? '' : co2Val > 1400 ? 'bad' : co2Val > 1000 ? 'mid' : 'good';
-    const co2Lbl = co2Val == null ? '' : co2Val > 1400 ? 'НУЖНО ПРОВЕТРИТЬ' : co2Val > 1000 ? 'СРЕДНЕ' : 'ХОРОШО';
+      ? Math.round(parseFloat(co2State.state)) : 650;
+    const co2Cls = co2Val > 1400 ? 'poor' : co2Val > 1000 ? 'moderate' : 'good';
+    const co2Lbl = co2Val > 1400 ? 'Нужно проветрить' : co2Val > 1000 ? 'Средне' : 'Хорошо';
 
-    // Use first fan for speed control demo
+    // 2×2 fan grid
     const eid = fanIds[0];
-    const s = this._pvEntState(eid);
-    const curPct = s?.attributes?.percentage ?? (s?.state === 'on' ? 50 : 0);
-    const speeds = [0, 33, 66, 100];
-    const speedsHtml = speeds.map(p => `
-      <div class="sp ${Math.abs(curPct - p) < 8 ? 'active' : ''}"
-           data-pv-action="vent-speed" data-entity="${esc(eid)}" data-pct="${p}">
-        ${p === 0 ? 'Выкл' : p === 33 ? 'Тихо' : p === 66 ? 'Средне' : 'Турбо'}
-        <span class="pct">${p}%</span>
-      </div>`).join('');
+    const curPct = firstFan?.attributes?.percentage ?? (fanOn ? 50 : 0);
+    const speeds = [
+      { pct: 0,   lbl: 'Выкл' },
+      { pct: 33,  lbl: 'Тихо' },
+      { pct: 66,  lbl: 'Средне' },
+      { pct: 100, lbl: 'Турбо' },
+    ];
+    const speedsHtml = speeds.map(s => `
+      <button class="pv-pill ${Math.abs(curPct - s.pct) < 8 ? 'active' : ''}"
+              data-pv-action="vent-speed" data-entity="${esc(eid)}" data-pct="${s.pct}">
+        <span>${esc(s.lbl)}</span>
+      </button>`).join('');
 
     return this._pvWrap(`
-      ${this._pvHeader('Вентиляция')}
-      <div class="pv-content">
-        ${co2Val != null ? `
-          <div class="pv-vent-co2 ${co2Cls}">
-            <div class="v">${co2Val}<span class="unit">ppm</span></div>
-            <div class="lbl">CO₂ · ${co2Lbl}</div>
-          </div>` : ''}
-        <div class="pv-vent-grid">${speedsHtml}</div>
+      ${this._pvHeader('Вентиляция', { rightBtn: headerRight })}
+      <div class="pv-vent-quality">
+        <div class="label">Air quality · CO₂</div>
+        <div class="value">
+          <span class="num">${co2Val}</span>
+          <span class="unit">ppm</span>
+        </div>
+        <div class="status ${co2Cls}">${esc(co2Lbl)}</div>
       </div>
-    `);
+      <div class="pv-vent-fan">
+        <div class="label">Скорость</div>
+        <div class="grid">${speedsHtml}</div>
+      </div>
+    `, { cfg });
   }
 
   // ============ EVENT WIRING ============
@@ -3649,6 +4136,87 @@ class BMSPanelEditor extends HTMLElement {
         this._pvSetPending(eid, pct === 0 ? 'off' : 'on', { percentage: pct });
         if (pct === 0) this._pvCallService('fan', 'turn_off', { entity_id: eid });
         else this._pvCallService('fan', 'set_percentage', { entity_id: eid, percentage: pct });
+      };
+    });
+
+    // ---- Light master toggle (header power button) ----
+    $$('[data-pv-action="light-master"]').forEach(el => {
+      el.onclick = () => {
+        const ids = Array.isArray(cfg.entities?.lights) ? cfg.entities.lights : [];
+        if (!ids.length) return;
+        const anyOn = ids.some(e => this._pvEntState(e)?.state === 'on');
+        const target = anyOn ? 'off' : 'on';
+        ids.forEach(e => this._pvSetPending(e, target));
+        this._pvCallService('light', anyOn ? 'turn_off' : 'turn_on', { entity_id: ids });
+      };
+    });
+
+    // ---- Curtain master toggle ----
+    $$('[data-pv-action="curtain-master"]').forEach(el => {
+      el.onclick = () => {
+        const ids = Array.isArray(cfg.entities?.curtains) ? cfg.entities.curtains : [];
+        if (!ids.length) return;
+        const anyOpen = ids.some(e => {
+          const st = this._pvEntState(e);
+          const p = st?.attributes?.current_position;
+          return (typeof p === 'number' ? p > 5 : st?.state === 'open');
+        });
+        ids.forEach(e => this._pvSetPending(
+          e, anyOpen ? 'closed' : 'open', { current_position: anyOpen ? 0 : 100 }
+        ));
+        this._pvCallService('cover', anyOpen ? 'close_cover' : 'open_cover', { entity_id: ids });
+      };
+    });
+
+    // ---- Climate power toggle (header) ----
+    $$('[data-pv-action="climate-power"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        if (!eid) return;
+        const s = this._pvEntState(eid);
+        const isOff = !s || s.state === 'off';
+        const newMode = isOff ? (this._previewScreen === 'ac' ? 'cool' : 'heat') : 'off';
+        this._pvSetPending(eid, newMode);
+        this._pvCallService('climate', 'set_hvac_mode',
+          { entity_id: eid, hvac_mode: newMode });
+      };
+    });
+
+    // ---- Climate temp ± ----
+    $$('[data-pv-action="climate-temp"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        const delta = parseInt(el.dataset.delta, 10);
+        const s = this._pvEntState(eid);
+        const cur = s?.attributes?.temperature ?? 22;
+        const newT = Math.max(10, Math.min(35, cur + delta));
+        this._pvSetPending(eid, s?.state || 'heat', { temperature: newT });
+        this._pvCallService('climate', 'set_temperature',
+          { entity_id: eid, temperature: newT });
+      };
+    });
+
+    // ---- Climate fan mode ----
+    $$('[data-pv-action="climate-fan"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        const fan = el.dataset.fan;
+        const s = this._pvEntState(eid);
+        this._pvSetPending(eid, s?.state || 'heat', { fan_mode: fan });
+        this._pvCallService('climate', 'set_fan_mode',
+          { entity_id: eid, fan_mode: fan });
+      };
+    });
+
+    // ---- Vent power (header) ----
+    $$('[data-pv-action="vent-power"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        if (!eid) return;
+        const s = this._pvEntState(eid);
+        const isOn = s && s.state !== 'off' && s.state !== 'unavailable';
+        this._pvSetPending(eid, isOn ? 'off' : 'on');
+        this._pvCallService('fan', isOn ? 'turn_off' : 'turn_on', { entity_id: eid });
       };
     });
   }

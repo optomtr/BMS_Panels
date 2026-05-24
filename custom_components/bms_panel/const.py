@@ -99,6 +99,10 @@ DEFAULT_CONFIG = {
     # menu заполнители (4 «menu» лучше чем 4 ссылки на выключенные экраны).
     "home_nav": ["light", "menu", "menu", "menu", "menu"],
     "background_dim": 30,
+    # URL/путь к собственному фону вместо встроенного background.png.
+    # None = использовать встроенный. APK кэширует загруженный URL локально
+    # (offline-first) и автоматически переключается на встроенный при ошибке.
+    "background_image_url": None,
     "screen_timeout": 30,
     "language": "Русский",
     "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},

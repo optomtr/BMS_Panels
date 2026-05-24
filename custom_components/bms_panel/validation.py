@@ -128,6 +128,39 @@ def validate(
             {"type": "field", "key": "language"},
         ))
 
+    # V10: background_image_url — простая sanity-проверка.
+    # Реальная загрузка URL делается на APK (offline-first cache).
+    bg_url = cfg.get("background_image_url")
+    if bg_url not in (None, ""):
+        if not isinstance(bg_url, str):
+            issues.append(Issue(
+                "V10", SEV_ERROR,
+                "Фон панели: ожидается строка с URL или путём.",
+                "Очистите поле для использования встроенного фона.",
+                {"type": "field", "key": "background_image_url"},
+            ))
+        else:
+            u = bg_url.strip()
+            ok = (
+                u.startswith("http://") or u.startswith("https://") or
+                u.startswith("/local/") or u.startswith("/media/") or
+                u.startswith("/api/")
+            )
+            if not ok:
+                issues.append(Issue(
+                    "V10", SEV_WARN,
+                    f"Фон панели: «{u[:60]}» не похож на корректный URL.",
+                    "Используйте https://... или /local/... (файлы из папки HA www).",
+                    {"type": "field", "key": "background_image_url"},
+                ))
+            elif u.startswith("http://"):
+                issues.append(Issue(
+                    "V10W", SEV_WARN,
+                    "Фон по http:// — без шифрования.",
+                    "Рекомендуется https:// для внешних URL.",
+                    {"type": "field", "key": "background_image_url"},
+                ))
+
     # --- B. Экраны / home_nav ---
     screens = cfg.get("screens", {})
     if all(not s.get("enabled", False) for s in screens.values()):

@@ -244,6 +244,12 @@ CONFIG_SCHEMA = vol.Schema({
         HOME_NAV_SCHEMA,
     vol.Optional("background_dim", default=DEFAULT_CONFIG["background_dim"]):
         vol.All(int, vol.Range(min=BG_DIM_MIN, max=BG_DIM_MAX)),
+    # Если задан — APK подменяет встроенный фон. Допустимые формы:
+    #   None / "" — встроенный
+    #   "http(s)://..." — HA скачает и закэширует
+    #   "/local/..."   — путь в HA www (через HA media)
+    vol.Optional("background_image_url", default=None):
+        vol.Any(None, str),
     vol.Optional("screen_timeout", default=DEFAULT_CONFIG["screen_timeout"]):
         vol.In(SCREEN_TIMEOUT_OPTIONS),
     vol.Optional("language",       default=DEFAULT_CONFIG["language"]):
