@@ -1,7 +1,7 @@
 {
   "domain": "bms_panel",
   "name": "BMS Smart Panel",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "documentation": "https://github.com/optomtr/BMS_Panels",
   "issue_tracker": "https://github.com/optomtr/BMS_Panels/issues",
   "codeowners": ["@optomtr"],

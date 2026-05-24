@@ -537,115 +537,197 @@ input[type=range] { width: 100%; }
 .entity-select-wrap select { flex: 1; min-width: 200px; }
 
 /* ---- Climate Presets (вложенная секция в bind-group) ---- */
+/* Redesigned for integrators on wide screens: large cards, big touch targets,
+   expanded-by-default, no text overflow. Responsive: stacks at <900px. */
 .climate-presets {
-  margin-top: 12px;
-  border-top: 1px dashed var(--divider-color);
-  padding-top: 12px;
+  margin-top: 18px;
+  padding: 18px 16px 16px;
+  background: linear-gradient(180deg, rgba(33,150,243,0.05), transparent 80%);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--bms-radius);
 }
 .climate-presets-head {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 12px;
   cursor: pointer; user-select: none;
-  padding: 4px 0;
-  font-size: 14px; font-weight: 500;
+  padding: 4px 2px 10px;
+  border-bottom: 1px solid var(--divider-color);
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.climate-presets-head .cp-head-icon {
+  --mdc-icon-size: 28px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+.climate-presets-head .cp-head-text {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.climate-presets-head .cp-title {
+  font-size: 20px; font-weight: 500;
+  line-height: 1.2;
+  color: var(--primary-text-color);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.climate-presets-head .cp-subtitle {
+  font-size: 13px; color: var(--secondary-text-color);
+  line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.climate-presets-head .cp-state-badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500;
+  flex-shrink: 0;
+  background: var(--secondary-background-color);
+  color: var(--secondary-text-color);
+}
+.climate-presets-head .cp-state-badge.modified {
+  background: rgba(255,152,0,0.15);
+  color: var(--bms-warn);
 }
 .climate-presets-head ha-icon.chev {
-  --mdc-icon-size: 18px;
+  --mdc-icon-size: 24px;
   transition: transform 0.2s;
   color: var(--secondary-text-color);
+  flex-shrink: 0;
 }
 .climate-presets.expanded .climate-presets-head ha-icon.chev { transform: rotate(180deg); }
-.climate-presets-sub {
-  font-size: 12px; color: var(--secondary-text-color);
-  font-weight: 400;
-  margin-left: 6px;
-}
 .climate-presets-body {
   display: none;
-  margin-top: 10px;
 }
 .climate-presets.expanded .climate-presets-body { display: block; }
-.climate-preset-table {
+
+/* Card grid: 3 wide cards on >=900px, 1 col when narrower. */
+.climate-preset-cards {
   display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 1fr) minmax(150px, 1.4fr) minmax(150px, 1.4fr);
-  gap: 8px 10px;
-  align-items: center;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
-.climate-preset-table.no-fan {
-  grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 1fr) minmax(150px, 1.4fr);
+@media (max-width: 900px) {
+  .climate-preset-cards { grid-template-columns: 1fr; }
 }
-.climate-preset-th {
-  font-size: 11px;
-  color: var(--secondary-text-color);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--divider-color);
-}
-.climate-preset-scene-cell {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 14px;
-}
-.climate-preset-scene-cell ha-icon { --mdc-icon-size: 20px; color: #C99A55; }
-.climate-preset-scene-cell .nm { font-weight: 500; }
-.climate-preset-scene-cell .sub {
-  font-size: 11px; color: var(--secondary-text-color);
-  display: block; line-height: 1.1;
-}
-.climate-preset-temp {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: var(--secondary-background-color);
-  border-radius: 6px;
-  padding: 2px 4px;
-}
-.climate-preset-temp button {
-  width: 26px; height: 26px;
+
+.cp-card {
+  background: var(--card-background-color);
   border: 1px solid var(--divider-color);
-  border-radius: 50%;
+  border-radius: var(--bms-radius);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  min-width: 0;
+  position: relative;
+}
+.cp-card.is-modified { border-color: var(--bms-info); }
+.cp-card-head {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0;
+}
+.cp-card-head ha-icon { --mdc-icon-size: 32px; color: #C99A55; flex-shrink: 0; }
+.cp-card-head .cp-card-titles { flex: 1; min-width: 0; }
+.cp-card-head .cp-card-name {
+  font-size: 18px; font-weight: 500; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-card-head .cp-card-sub {
+  font-size: 12px; color: var(--secondary-text-color); line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-card-head .cp-modified-pill {
+  font-size: 10px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(33,150,243,0.15); color: var(--bms-info);
+  text-transform: uppercase; letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+/* Big temperature stepper */
+.cp-temp-row {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cp-temp-label {
+  font-size: 11px; color: var(--secondary-text-color);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.cp-temp-stepper {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--secondary-background-color);
+  border-radius: 10px;
+  padding: 6px;
+  gap: 8px;
+}
+.cp-temp-stepper button {
+  width: 48px; height: 48px; min-width: 48px;
+  border: 1px solid var(--divider-color);
+  border-radius: 10px;
   background: var(--card-background-color);
   color: var(--primary-text-color);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 24px; font-weight: 500;
   display: inline-flex; align-items: center; justify-content: center;
+  user-select: none;
+  flex-shrink: 0;
 }
-.climate-preset-temp button:hover { background: var(--primary-color); color: #fff; }
-.climate-preset-temp button:active { transform: scale(0.95); }
-.climate-preset-temp button[disabled] { opacity: 0.4; cursor: not-allowed; }
-.climate-preset-temp .v {
-  min-width: 48px; text-align: center;
+.cp-temp-stepper button:hover:not([disabled]) { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.cp-temp-stepper button:active:not([disabled]) { transform: scale(0.95); }
+.cp-temp-stepper button[disabled] { opacity: 0.35; cursor: not-allowed; }
+.cp-temp-value {
+  flex: 1; text-align: center;
+  font-size: 32px; font-weight: 500;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  font-size: 14px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
 }
-.climate-preset-temp .v.overridden { color: var(--bms-info); }
+.cp-temp-value.overridden { color: var(--bms-info); }
+
+/* Mode dropdowns */
+.cp-field {
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 0;
+}
+.cp-field-label {
+  font-size: 11px; color: var(--secondary-text-color);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
 .climate-preset-select {
-  width: 100%; padding: 4px 6px;
-  font-size: 13px;
+  width: 100%; box-sizing: border-box;
+  height: 40px; padding: 0 10px;
+  font-size: 14px; font-family: inherit;
   background: var(--secondary-background-color);
   border: 1px solid var(--divider-color);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--primary-text-color);
+  min-width: 0;
 }
-.climate-preset-select.overridden { border-color: var(--bms-info); }
+.climate-preset-select.overridden { border-color: var(--bms-info); border-width: 2px; padding: 0 9px; }
+
+/* Footer: hint + reset button */
 .climate-presets-footer {
   display: flex; justify-content: space-between; align-items: center;
-  margin-top: 12px;
-  font-size: 12px; color: var(--secondary-text-color);
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider-color);
+  font-size: 13px; color: var(--secondary-text-color);
+  flex-wrap: wrap;
 }
+.climate-presets-footer .cp-hint { min-width: 0; flex: 1; }
 .climate-presets-footer .reset-btn {
   background: transparent;
   border: 1px solid var(--divider-color);
   color: var(--secondary-text-color);
-  padding: 4px 12px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  min-height: 40px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px; font-family: inherit;
   display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
 }
-.climate-presets-footer .reset-btn:hover {
+.climate-presets-footer .reset-btn:hover:not([disabled]) {
   border-color: var(--bms-warn);
   color: var(--bms-warn);
 }
-.climate-presets-footer .reset-btn ha-icon { --mdc-icon-size: 14px; }
+.climate-presets-footer .reset-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.climate-presets-footer .reset-btn ha-icon { --mdc-icon-size: 16px; }
 
 /* ---- Home nav ---- */
 .home-nav-grid {
@@ -2384,9 +2466,13 @@ class BMSPanelEditor extends HTMLElement {
   _renderClimatePresets(screen, cfg) {
     const screenMeta = CLIMATE_PRESET_SCREEN_META[screen];
     if (!screenMeta) return '';
-    // Раскрыта ли секция (по-screen state).
+    // Раскрыта ли секция (по-screen state). Default = expanded — интегратору
+    // важно сразу видеть, что эти настройки тут есть. Свернуть он может сам.
     this._climatePresetsExpanded = this._climatePresetsExpanded || {};
-    const expanded = !!this._climatePresetsExpanded[screen];
+    if (this._climatePresetsExpanded[screen] === undefined) {
+      this._climatePresetsExpanded[screen] = true;
+    }
+    const expanded = this._climatePresetsExpanded[screen] !== false;
 
     const eff = this._effectiveClimatePresets(screen, cfg);
     const caps = this._climateEntityCaps(screen, cfg);
@@ -2394,29 +2480,32 @@ class BMSPanelEditor extends HTMLElement {
     const overrides = (cfg.climate_presets && cfg.climate_presets[screen]) || {};
     const hasAny = CLIMATE_PRESET_SCENES.some(sc => overrides[sc.key] && Object.keys(overrides[sc.key]).length);
 
-    const headerLabel = hasAny
-      ? `Пресеты сценариев <span class="climate-presets-sub">· изменены</span>`
-      : `Пресеты сценариев <span class="climate-presets-sub">· по умолчанию</span>`;
+    // Более длинные подписи к сценам для крупных карточек.
+    const SCENE_SUBTITLES = {
+      turbo:   'Быстрое достижение цели — мощность на максимум',
+      comfort: 'Повседневный режим — баланс комфорта и тишины',
+      eco:     'Экономия энергии — минимальная нагрузка',
+    };
 
-    const rows = CLIMATE_PRESET_SCENES.map(sc => {
+    const cards = CLIMATE_PRESET_SCENES.map(sc => {
       const v = eff[sc.key];
       const ov = overrides[sc.key] || {};
       const tempOverridden = ov.target !== undefined;
       const hvacOverridden = ov.hvac_mode !== undefined;
       const fanOverridden  = ov.fan_mode !== undefined;
+      const cardModified = tempOverridden || hvacOverridden || fanOverridden;
 
-      // HVAC mode select
+      // HVAC select options
       const hvacOpts = caps.hvac.map(m => `
         <option value="${esc(m)}" ${v.hvac_mode === m ? 'selected' : ''}>
           ${esc(CLIMATE_HVAC_MODE_LABELS[m] || m)}
         </option>
       `).join('');
-      // Если current value не в списке устройства — добавляем как «дополнительный»
       const hvacExtra = !caps.hvac.includes(v.hvac_mode) && v.hvac_mode
         ? `<option value="${esc(v.hvac_mode)}" selected>${esc(CLIMATE_HVAC_MODE_LABELS[v.hvac_mode] || v.hvac_mode)} (не в устр.)</option>`
         : '';
 
-      const fanCellHtml = !showFan ? '' : (() => {
+      const fanFieldHtml = !showFan ? '' : (() => {
         const fanOpts = caps.fan.map(m => `
           <option value="${esc(m)}" ${v.fan_mode === m ? 'selected' : ''}>
             ${esc(CLIMATE_FAN_MODE_LABELS[m] || m)}
@@ -2426,7 +2515,8 @@ class BMSPanelEditor extends HTMLElement {
           ? `<option value="${esc(v.fan_mode)}" selected>${esc(CLIMATE_FAN_MODE_LABELS[v.fan_mode] || v.fan_mode)} (не в устр.)</option>`
           : '';
         return `
-          <div>
+          <div class="cp-field">
+            <label class="cp-field-label">Вентилятор</label>
             <select class="climate-preset-select ${fanOverridden ? 'overridden' : ''}"
                     data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-field="fan_mode">
               <option value="">— не задавать —</option>
@@ -2440,49 +2530,60 @@ class BMSPanelEditor extends HTMLElement {
       const targetVal = (v.target ?? 22).toFixed(1).replace(/\.0$/, '');
       const decMin = v.target <= CLIMATE_TARGET_MIN;
       const incMax = v.target >= CLIMATE_TARGET_MAX;
+      const subtitle = SCENE_SUBTITLES[sc.key] || sc.sub;
 
       return `
-        <div class="climate-preset-scene-cell">
-          <ha-icon icon="${esc(sc.icon)}"></ha-icon>
-          <div>
-            <div class="nm">${esc(sc.label)}</div>
-            <span class="sub">${esc(sc.sub)}</span>
+        <div class="cp-card ${cardModified ? 'is-modified' : ''}">
+          <div class="cp-card-head">
+            <ha-icon icon="${esc(sc.icon)}"></ha-icon>
+            <div class="cp-card-titles">
+              <div class="cp-card-name">${esc(sc.label)}</div>
+              <div class="cp-card-sub">${esc(subtitle)}</div>
+            </div>
+            ${cardModified ? '<span class="cp-modified-pill">изменено</span>' : ''}
           </div>
+          <div class="cp-temp-row">
+            <label class="cp-temp-label">Целевая температура</label>
+            <div class="cp-temp-stepper">
+              <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-dec" ${decMin ? 'disabled' : ''} title="−${CLIMATE_TARGET_STEP}°" aria-label="Уменьшить">−</button>
+              <span class="cp-temp-value ${tempOverridden ? 'overridden' : ''}">${targetVal}°</span>
+              <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-inc" ${incMax ? 'disabled' : ''} title="+${CLIMATE_TARGET_STEP}°" aria-label="Увеличить">+</button>
+            </div>
+          </div>
+          <div class="cp-field">
+            <label class="cp-field-label">Режим работы (HVAC)</label>
+            <select class="climate-preset-select ${hvacOverridden ? 'overridden' : ''}"
+                    data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-field="hvac_mode">
+              ${hvacExtra}
+              ${hvacOpts}
+            </select>
+          </div>
+          ${fanFieldHtml}
         </div>
-        <div class="climate-preset-temp">
-          <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-dec" ${decMin ? 'disabled' : ''} title="−${CLIMATE_TARGET_STEP}°">−</button>
-          <span class="v ${tempOverridden ? 'overridden' : ''}">${targetVal}°</span>
-          <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-inc" ${incMax ? 'disabled' : ''} title="+${CLIMATE_TARGET_STEP}°">+</button>
-        </div>
-        <div>
-          <select class="climate-preset-select ${hvacOverridden ? 'overridden' : ''}"
-                  data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-field="hvac_mode">
-            ${hvacExtra}
-            ${hvacOpts}
-          </select>
-        </div>
-        ${fanCellHtml}
       `;
     }).join('');
+
+    const stateBadge = hasAny
+      ? '<span class="cp-state-badge modified">изменено</span>'
+      : '<span class="cp-state-badge">по умолчанию</span>';
 
     return `
       <div class="climate-presets ${expanded ? 'expanded' : ''}" data-cp-section="${screen}">
         <div class="climate-presets-head" data-cp-toggle="${screen}">
-          <ha-icon icon="mdi:tune-vertical"></ha-icon>
-          <span>${headerLabel}</span>
-          <span style="flex:1;"></span>
+          <ha-icon class="cp-head-icon" icon="mdi:thermometer-lines"></ha-icon>
+          <div class="cp-head-text">
+            <div class="cp-title">Пресеты сценариев — Турбо / Комфорт / Эко</div>
+            <div class="cp-subtitle">Кастомизация температуры и режимов для каждой сцены</div>
+          </div>
+          ${stateBadge}
           <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
         </div>
         <div class="climate-presets-body">
-          <div class="climate-preset-table ${showFan ? '' : 'no-fan'}">
-            <div class="climate-preset-th">Сцена</div>
-            <div class="climate-preset-th">Температура</div>
-            <div class="climate-preset-th">HVAC mode</div>
-            ${showFan ? '<div class="climate-preset-th">Fan mode</div>' : ''}
-            ${rows}
+          <div class="climate-preset-cards">
+            ${cards}
           </div>
           <div class="climate-presets-footer">
-            <span>Поля <span style="color:var(--bms-info);">синие</span> — переопределены интегратором.</span>
+            <span class="cp-hint">Поля и карточки <span style="color:var(--bms-info); font-weight:500;">синие</span> — переопределены интегратором.</span>
             <button class="reset-btn" data-cp-reset="${screen}" ${hasAny ? '' : 'disabled'}>
               <ha-icon icon="mdi:restore"></ha-icon> Сбросить на дефолт
             </button>
