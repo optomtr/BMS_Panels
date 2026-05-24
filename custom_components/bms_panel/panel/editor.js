@@ -576,7 +576,7 @@ input[type=range] { width: 100%; }
  * 1:1 port of ~/bms-panel-app/index.html — the same web prototype the
  * APK was built from. All sizes/colors/spacing match the real device.
  *
- * Class names are namespaced with `.pv-` (preview) so they cannot leak
+ * Class names are namespaced with '.pv-' (preview) so they cannot leak
  * to the outer HA editor CSS.
  *
  * Panel container: .pv-panel — 480×480 square (true device size).
@@ -585,7 +585,7 @@ input[type=range] { width: 100%; }
  * Background:
  *   .pv-panel        — sub-screens (Light/Curtain/...) — uses blurred backdrop
  *   .pv-panel.pv-home — Home screen — uses sharp background image, dimmed
- *                       per `--pv-home-dim` (set inline from background_dim).
+ *                       per '--pv-home-dim' (set inline from background_dim).
  *   Background source: /bms_panel_static/background.png (built-in) or
  *                       integrator-supplied URL via background_image_url.
  */
@@ -664,7 +664,7 @@ input[type=range] { width: 100%; }
 /* Blurred backdrop for sub-screens (same as index.html .panel::before) */
 .pv-panel::before {
   content: ''; position: absolute; inset: -30px;
-  background: var(--pv-bg-img, url('/bms_panel_static/background.png?v=2.2.1')) center/cover no-repeat;
+  background: var(--pv-bg-img, url('/bms_panel_static/background.png?v=2.2.2')) center/cover no-repeat;
   filter: blur(18px); transform: scale(1.1);
   z-index: -1;
 }
@@ -3495,9 +3495,9 @@ class BMSPanelEditor extends HTMLElement {
   _pvWrap(inner, opts = {}) {
     const cfg = opts.cfg || {};
     const customBg = (cfg.background_image_url || '').trim();
-    // ВАЖНО: для built-in PNG добавляем cache-bust ?v=2.2.1 — без этого
+    // ВАЖНО: для built-in PNG добавляем cache-bust ?v=2.2.2 — без этого
     // браузер может закэшировать 404 от старой инсталляции и preview будет чёрный.
-    const bgUrl = customBg || '/bms_panel_static/background.png?v=2.2.1';
+    const bgUrl = customBg || '/bms_panel_static/background.png?v=2.2.2';
     const homeDim = ((cfg.background_dim ?? 30) / 100).toFixed(2);
     const cls = opts.home ? 'pv-home' : 'pv-sub';
     const climateCls = opts.climate ? `pv-climate ${esc(opts.climate)}` : '';
@@ -3580,21 +3580,21 @@ class BMSPanelEditor extends HTMLElement {
     const dateStr = `${weekdays[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
 
     // Comfort message — 1-в-1 с APK HomeScreen.kt buildComfortMessage()
-    // tempState: <18 прохладно / <22 комфортно / <26 тепло / иначе жарко
-    // humidState: <30 сухо / <60 влажность в норме / иначе влажно
-    // Формат: «Дома ${tempState} · ${humidState}»
+    // tempLabel: <18 прохладно / <22 комфортно / <26 тепло / иначе жарко
+    // humLabel:  <30 сухо / <60 влажность в норме / иначе влажно
+    // Формат: «Дома {tempLabel} · {humLabel}»
     let comfortMsg = '';
     const tNum = parseFloat(tempVal);
     const hNum = parseFloat(humVal);
-    const tempState = !isNaN(tNum)
+    const tempLabel = !isNaN(tNum)
       ? (tNum < 18 ? 'прохладно' : tNum < 22 ? 'комфортно' : tNum < 26 ? 'тепло' : 'жарко')
       : null;
-    const humState = !isNaN(hNum)
+    const humLabel = !isNaN(hNum)
       ? (hNum < 30 ? 'сухо' : hNum < 60 ? 'влажность в норме' : 'влажно')
       : null;
-    if (tempState && humState) comfortMsg = `Дома ${tempState} · ${humState}`;
-    else if (tempState) comfortMsg = `Дома ${tempState}`;
-    else if (humState) comfortMsg = humState.charAt(0).toUpperCase() + humState.slice(1);
+    if (tempLabel && humLabel) comfortMsg = `Дома ${tempLabel} · ${humLabel}`;
+    else if (tempLabel) comfortMsg = `Дома ${tempLabel}`;
+    else if (humLabel) comfortMsg = humLabel.charAt(0).toUpperCase() + humLabel.slice(1);
 
     const nav = (cfg.home_nav || []).slice(0, 5);
     const navHtml = nav.map(key => {
