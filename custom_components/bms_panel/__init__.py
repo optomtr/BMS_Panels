@@ -99,6 +99,10 @@ _MERGE_STRATEGY = {
     # custom_cards: replace целиком — UI всегда шлёт полный список,
     # partial merge картинку только запутает (как чинить дубликаты id?).
     "custom_cards":   "replace",
+    # climate_presets: deep — partial вызов `{climate_presets:{ac:{turbo:{target:19}}}}`
+    # должен переписать только этот target, не стерев остальные сцены/экраны.
+    # Удобно для скриптов / автоматизаций («задать turbo=19 на лето»).
+    "climate_presets": "deep",
 }
 
 
@@ -115,9 +119,23 @@ def _merge_config(existing: dict, patch: dict) -> dict:
     out = copy.deepcopy(existing) if existing else {}
     if not isinstance(patch, dict):
         return out
+    def _deep_merge(dst: dict, src: dict) -> dict:
+        """Рекурсивный merge: dict ⊕ dict → dict, всё остальное → replace."""
+        if not isinstance(dst, dict):
+            return copy.deepcopy(src) if isinstance(src, dict) else src
+        result = dict(dst)
+        for sk, sv in src.items():
+            if isinstance(sv, dict) and isinstance(result.get(sk), dict):
+                result[sk] = _deep_merge(result[sk], sv)
+            else:
+                result[sk] = sv
+        return result
+
     for k, v in patch.items():
         strategy = _MERGE_STRATEGY.get(k, "replace")
-        if strategy == "merge_dict" and isinstance(v, dict) and isinstance(out.get(k), dict):
+        if strategy == "deep" and isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        elif strategy == "merge_dict" and isinstance(v, dict) and isinstance(out.get(k), dict):
             merged = dict(out[k])
             for sub_k, sub_v in v.items():
                 # screens.{light: {...}} — заменяем целиком per-экран,

@@ -13,6 +13,12 @@ from .const import (
     BG_DIM_MAX,
     BG_DIM_MIN,
     BIND_KEYS,
+    CLIMATE_FAN_MODES,
+    CLIMATE_HVAC_MODES,
+    CLIMATE_PRESET_SCENES,
+    CLIMATE_PRESET_SCREENS,
+    CLIMATE_TARGET_MAX,
+    CLIMATE_TARGET_MIN,
     CONFIG_SCHEMA_VERSION,
     CUSTOM_CARD_ACTION_TYPES,
     CUSTOM_CARD_LABEL_LANGS,
@@ -155,6 +161,72 @@ def _custom_cards_value(value):
     return out
 
 
+# ---------- Climate Presets ----------
+# Шаг 0.5° — APK округляет до этого. Любые .25 / .75 нормализуются.
+def _climate_target(value):
+    if value is None or value == "":
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError) as exc:
+        raise vol.Invalid(f"target должен быть числом, получено: {value!r}") from exc
+    if not (CLIMATE_TARGET_MIN <= v <= CLIMATE_TARGET_MAX):
+        raise vol.Invalid(
+            f"target {v}° вне диапазона [{CLIMATE_TARGET_MIN}, {CLIMATE_TARGET_MAX}]"
+        )
+    # Округляем до 0.5° — APK всё равно сделает это, а так storage остаётся чистый.
+    return round(v * 2) / 2
+
+
+CLIMATE_PRESET_SCENE_SCHEMA = vol.Schema({
+    vol.Optional("target"):    _climate_target,
+    vol.Optional("hvac_mode"): vol.Any(None, vol.In(CLIMATE_HVAC_MODES)),
+    vol.Optional("fan_mode"):  vol.Any(None, vol.In(CLIMATE_FAN_MODES)),
+}, extra=vol.REMOVE_EXTRA)
+
+
+def _climate_presets_value(value):
+    """Нормализовать climate_presets: пустой dict если что-то странное.
+
+    Все ключи опциональны — интегратор задаёт только то что хочет переопределить.
+    Поля валидируются ПОПОЛЕВО: невалидный hvac_mode выкидывается, но target
+    остаётся. Это важно — иначе одна опечатка в YAML стирает всю сцену.
+    """
+    if not isinstance(value, dict):
+        return {}
+    out: dict = {}
+    for screen, scenes in value.items():
+        if screen not in CLIMATE_PRESET_SCREENS:
+            continue
+        if not isinstance(scenes, dict):
+            continue
+        screen_out: dict = {}
+        for scene, preset in scenes.items():
+            if scene not in CLIMATE_PRESET_SCENES:
+                continue
+            if not isinstance(preset, dict):
+                continue
+            cleaned: dict = {}
+            # Per-field валидация — каждое поле независимо. Невалидное игнорим
+            # (logged-as-warning через voluptuous behavior было бы лишним noise).
+            if "target" in preset:
+                try:
+                    t = _climate_target(preset["target"])
+                    if t is not None:
+                        cleaned["target"] = t
+                except vol.Invalid:
+                    pass
+            if preset.get("hvac_mode") in CLIMATE_HVAC_MODES:
+                cleaned["hvac_mode"] = preset["hvac_mode"]
+            if preset.get("fan_mode") in CLIMATE_FAN_MODES:
+                cleaned["fan_mode"] = preset["fan_mode"]
+            if cleaned:
+                screen_out[scene] = cleaned
+        if screen_out:
+            out[screen] = screen_out
+    return out
+
+
 # ---------- Карта переименований bind-ключей (для миграции старых storage) ----------
 # v1.2 → v1.3: APK ожидает plural-имена для fallback-сенсоров температуры и
 # не использует ac_fan. Сюда же кладём «исторические» имена на случай если
@@ -260,6 +332,8 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Any(None, str),
     vol.Optional("custom_cards",   default=list):
         _custom_cards_value,
+    vol.Optional("climate_presets", default=dict):
+        _climate_presets_value,
     # Внутреннее, проставляется автоматически
     vol.Optional("_updated"):      str,
 }, extra=vol.REMOVE_EXTRA)  # лишние ключи дропаются — защита от старых полей

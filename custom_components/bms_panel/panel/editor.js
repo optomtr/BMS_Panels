@@ -71,6 +71,70 @@ const BIND_GROUPS = [
     ] },
 ];
 
+// ---------- Climate Presets ----------
+// 1-в-1 с const.py DEFAULT_CLIMATE_PRESETS / APK ClimateMoodPreset.
+// При расхождении — Python const.py источник истины (storage migration оттуда).
+const CLIMATE_PRESET_DEFAULTS = {
+  ac: {
+    turbo:   { target: 22.0, hvac_mode: 'cool', fan_mode: 'high' },
+    comfort: { target: 25.0, hvac_mode: 'cool', fan_mode: 'auto' },
+    eco:     { target: 28.0, hvac_mode: 'dry',  fan_mode: 'low'  },
+  },
+  heating: {
+    turbo:   { target: 23.0, hvac_mode: 'heat' },
+    comfort: { target: 21.0, hvac_mode: 'heat' },
+    eco:     { target: 18.0, hvac_mode: 'heat' },
+  },
+  floor: {
+    turbo:   { target: 24.0, hvac_mode: 'heat' },
+    comfort: { target: 22.0, hvac_mode: 'heat' },
+    eco:     { target: 21.0, hvac_mode: 'heat' },
+  },
+  convector: {
+    turbo:   { target: 24.0, hvac_mode: 'heat', fan_mode: 'high' },
+    comfort: { target: 21.0, hvac_mode: 'heat', fan_mode: 'mid'  },
+    eco:     { target: 18.0, hvac_mode: 'heat', fan_mode: 'low'  },
+  },
+};
+// Сцены — три «характера». «Ручной» — runtime-only, тут не редактируется.
+const CLIMATE_PRESET_SCENES = [
+  { key: 'turbo',   label: 'Турбо',   icon: 'mdi:fire',                       sub: 'максимум' },
+  { key: 'comfort', label: 'Комфорт', icon: 'mdi:alpha-a-circle-outline',     sub: 'повседневно' },
+  { key: 'eco',     label: 'Эко',     icon: 'mdi:leaf',                       sub: 'экономия' },
+];
+const CLIMATE_PRESET_SCREEN_META = {
+  ac:        { label: 'AC',        icon: 'mdi:air-conditioner',  hasFan: true  },
+  heating:   { label: 'Радиатор',  icon: 'mdi:radiator',         hasFan: false },
+  floor:     { label: 'Тёплый пол',icon: 'mdi:heating-coil',     hasFan: false },
+  convector: { label: 'Конвектор', icon: 'mdi:radiator-disabled',hasFan: true  },
+};
+const CLIMATE_TARGET_MIN = 5.0;
+const CLIMATE_TARGET_MAX = 35.0;
+const CLIMATE_TARGET_STEP = 0.5;
+// Стандартные HVAC modes HA. APK обработает любой, термостат может игнорить
+// неподдерживаемые — это валидно с т.з. UX (выбор из его hvac_modes делается
+// в момент рендера если есть привязка).
+const CLIMATE_HVAC_MODE_LABELS = {
+  off:       'Выкл',
+  heat:      'Нагрев (heat)',
+  cool:      'Охлаждение (cool)',
+  heat_cool: 'Авто-нагрев/охл (heat_cool)',
+  auto:      'Авто (auto)',
+  dry:       'Осушение (dry)',
+  fan_only:  'Только вентилятор (fan_only)',
+};
+const CLIMATE_FAN_MODE_LABELS = {
+  off:    'Выкл',
+  low:    'Низкая (low)',
+  mid:    'Средняя (mid)',
+  medium: 'Средняя (medium)',
+  high:   'Высокая (high)',
+  auto:   'Авто (auto)',
+  diffuse:'Diffuse',
+};
+// Маппинг screen → bind-key (первый климат entity для UI «modes из устройства»)
+const CLIMATE_BIND_KEY = { ac: 'acs', heating: 'heatings', floor: 'floors', convector: 'convectors' };
+
 // Три таба — Обзор / Экраны / Устройства. «Главный экран» (нижние 5 иконок)
 // объединён со списком экранов, потому что семантически это та же навигация.
 const TABS = [
@@ -471,6 +535,117 @@ input[type=range] { width: 100%; }
   flex-wrap: wrap;
 }
 .entity-select-wrap select { flex: 1; min-width: 200px; }
+
+/* ---- Climate Presets (вложенная секция в bind-group) ---- */
+.climate-presets {
+  margin-top: 12px;
+  border-top: 1px dashed var(--divider-color);
+  padding-top: 12px;
+}
+.climate-presets-head {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+  padding: 4px 0;
+  font-size: 14px; font-weight: 500;
+}
+.climate-presets-head ha-icon.chev {
+  --mdc-icon-size: 18px;
+  transition: transform 0.2s;
+  color: var(--secondary-text-color);
+}
+.climate-presets.expanded .climate-presets-head ha-icon.chev { transform: rotate(180deg); }
+.climate-presets-sub {
+  font-size: 12px; color: var(--secondary-text-color);
+  font-weight: 400;
+  margin-left: 6px;
+}
+.climate-presets-body {
+  display: none;
+  margin-top: 10px;
+}
+.climate-presets.expanded .climate-presets-body { display: block; }
+.climate-preset-table {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 1fr) minmax(150px, 1.4fr) minmax(150px, 1.4fr);
+  gap: 8px 10px;
+  align-items: center;
+}
+.climate-preset-table.no-fan {
+  grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 1fr) minmax(150px, 1.4fr);
+}
+.climate-preset-th {
+  font-size: 11px;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--divider-color);
+}
+.climate-preset-scene-cell {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px;
+}
+.climate-preset-scene-cell ha-icon { --mdc-icon-size: 20px; color: #C99A55; }
+.climate-preset-scene-cell .nm { font-weight: 500; }
+.climate-preset-scene-cell .sub {
+  font-size: 11px; color: var(--secondary-text-color);
+  display: block; line-height: 1.1;
+}
+.climate-preset-temp {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--secondary-background-color);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.climate-preset-temp button {
+  width: 26px; height: 26px;
+  border: 1px solid var(--divider-color);
+  border-radius: 50%;
+  background: var(--card-background-color);
+  color: var(--primary-text-color);
+  cursor: pointer;
+  font-size: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.climate-preset-temp button:hover { background: var(--primary-color); color: #fff; }
+.climate-preset-temp button:active { transform: scale(0.95); }
+.climate-preset-temp button[disabled] { opacity: 0.4; cursor: not-allowed; }
+.climate-preset-temp .v {
+  min-width: 48px; text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 14px;
+}
+.climate-preset-temp .v.overridden { color: var(--bms-info); }
+.climate-preset-select {
+  width: 100%; padding: 4px 6px;
+  font-size: 13px;
+  background: var(--secondary-background-color);
+  border: 1px solid var(--divider-color);
+  border-radius: 6px;
+  color: var(--primary-text-color);
+}
+.climate-preset-select.overridden { border-color: var(--bms-info); }
+.climate-presets-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 12px;
+  font-size: 12px; color: var(--secondary-text-color);
+}
+.climate-presets-footer .reset-btn {
+  background: transparent;
+  border: 1px solid var(--divider-color);
+  color: var(--secondary-text-color);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.climate-presets-footer .reset-btn:hover {
+  border-color: var(--bms-warn);
+  color: var(--bms-warn);
+}
+.climate-presets-footer .reset-btn ha-icon { --mdc-icon-size: 14px; }
 
 /* ---- Home nav ---- */
 .home-nav-grid {
@@ -2044,6 +2219,12 @@ class BMSPanelEditor extends HTMLElement {
         const groupClass = groupIssues.some(i => i.severity === SEV_ERROR) ? 'has-error'
           : groupIssues.some(i => i.severity === SEV_WARN) ? 'has-warn' : '';
 
+        // Для климат-экранов (ac/heating/floor/convector) добавляем
+        // секцию редактирования пресетов сцен — Турбо/Комфорт/Эко.
+        const climatePresetsHtml = CLIMATE_PRESET_SCREEN_META[group.screen]
+          ? this._renderClimatePresets(group.screen, cfg)
+          : '';
+
         return `
           <div class="bind-group ${groupClass}">
             <div class="bind-group-head">
@@ -2051,6 +2232,7 @@ class BMSPanelEditor extends HTMLElement {
               <div class="bind-group-title">${group.title}</div>
             </div>
             ${group.binds.map(b => this._renderBind(b, cfg.entities, issues)).join('')}
+            ${climatePresetsHtml}
           </div>
         `;
       }).join('')}
@@ -2163,6 +2345,149 @@ class BMSPanelEditor extends HTMLElement {
             <div>${esc(i.message)} <span style="opacity:0.8;">${esc(i.fix_hint)}</span></div>
           </div>
         `).join('')}
+      </div>
+    `;
+  }
+
+  // ============ Climate Presets (Турбо/Комфорт/Эко editing) ============
+
+  /** Эффективные пресеты: overrides поверх defaults. */
+  _effectiveClimatePresets(screen, cfg) {
+    const defaults = CLIMATE_PRESET_DEFAULTS[screen] || {};
+    const overrides = (cfg.climate_presets && cfg.climate_presets[screen]) || {};
+    const out = {};
+    for (const sc of CLIMATE_PRESET_SCENES) {
+      const d = defaults[sc.key] || {};
+      const o = overrides[sc.key] || {};
+      out[sc.key] = { ...d, ...o };
+    }
+    return out;
+  }
+
+  /** Возможные hvac/fan modes для UI dropdown.
+   *  Если есть привязанный climate entity и у него заполнены `hvac_modes` /
+   *  `fan_modes` в attributes — берём из устройства (точнее). Иначе fallback.
+   */
+  _climateEntityCaps(screen, cfg) {
+    const bk = CLIMATE_BIND_KEY[screen];
+    const ids = Array.isArray(cfg.entities?.[bk]) ? cfg.entities[bk] : [];
+    let hvac = ['heat', 'cool', 'auto', 'dry', 'fan_only', 'off', 'heat_cool'];
+    let fan  = ['low', 'mid', 'medium', 'high', 'auto', 'off', 'diffuse'];
+    if (ids.length && this._hass?.states?.[ids[0]]) {
+      const a = this._hass.states[ids[0]].attributes || {};
+      if (Array.isArray(a.hvac_modes) && a.hvac_modes.length) hvac = a.hvac_modes.slice();
+      if (Array.isArray(a.fan_modes)  && a.fan_modes.length)  fan  = a.fan_modes.slice();
+    }
+    return { hvac, fan };
+  }
+
+  _renderClimatePresets(screen, cfg) {
+    const screenMeta = CLIMATE_PRESET_SCREEN_META[screen];
+    if (!screenMeta) return '';
+    // Раскрыта ли секция (по-screen state).
+    this._climatePresetsExpanded = this._climatePresetsExpanded || {};
+    const expanded = !!this._climatePresetsExpanded[screen];
+
+    const eff = this._effectiveClimatePresets(screen, cfg);
+    const caps = this._climateEntityCaps(screen, cfg);
+    const showFan = screenMeta.hasFan;
+    const overrides = (cfg.climate_presets && cfg.climate_presets[screen]) || {};
+    const hasAny = CLIMATE_PRESET_SCENES.some(sc => overrides[sc.key] && Object.keys(overrides[sc.key]).length);
+
+    const headerLabel = hasAny
+      ? `Пресеты сценариев <span class="climate-presets-sub">· изменены</span>`
+      : `Пресеты сценариев <span class="climate-presets-sub">· по умолчанию</span>`;
+
+    const rows = CLIMATE_PRESET_SCENES.map(sc => {
+      const v = eff[sc.key];
+      const ov = overrides[sc.key] || {};
+      const tempOverridden = ov.target !== undefined;
+      const hvacOverridden = ov.hvac_mode !== undefined;
+      const fanOverridden  = ov.fan_mode !== undefined;
+
+      // HVAC mode select
+      const hvacOpts = caps.hvac.map(m => `
+        <option value="${esc(m)}" ${v.hvac_mode === m ? 'selected' : ''}>
+          ${esc(CLIMATE_HVAC_MODE_LABELS[m] || m)}
+        </option>
+      `).join('');
+      // Если current value не в списке устройства — добавляем как «дополнительный»
+      const hvacExtra = !caps.hvac.includes(v.hvac_mode) && v.hvac_mode
+        ? `<option value="${esc(v.hvac_mode)}" selected>${esc(CLIMATE_HVAC_MODE_LABELS[v.hvac_mode] || v.hvac_mode)} (не в устр.)</option>`
+        : '';
+
+      const fanCellHtml = !showFan ? '' : (() => {
+        const fanOpts = caps.fan.map(m => `
+          <option value="${esc(m)}" ${v.fan_mode === m ? 'selected' : ''}>
+            ${esc(CLIMATE_FAN_MODE_LABELS[m] || m)}
+          </option>
+        `).join('');
+        const fanExtra = v.fan_mode && !caps.fan.includes(v.fan_mode)
+          ? `<option value="${esc(v.fan_mode)}" selected>${esc(CLIMATE_FAN_MODE_LABELS[v.fan_mode] || v.fan_mode)} (не в устр.)</option>`
+          : '';
+        return `
+          <div>
+            <select class="climate-preset-select ${fanOverridden ? 'overridden' : ''}"
+                    data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-field="fan_mode">
+              <option value="">— не задавать —</option>
+              ${fanExtra}
+              ${fanOpts}
+            </select>
+          </div>
+        `;
+      })();
+
+      const targetVal = (v.target ?? 22).toFixed(1).replace(/\.0$/, '');
+      const decMin = v.target <= CLIMATE_TARGET_MIN;
+      const incMax = v.target >= CLIMATE_TARGET_MAX;
+
+      return `
+        <div class="climate-preset-scene-cell">
+          <ha-icon icon="${esc(sc.icon)}"></ha-icon>
+          <div>
+            <div class="nm">${esc(sc.label)}</div>
+            <span class="sub">${esc(sc.sub)}</span>
+          </div>
+        </div>
+        <div class="climate-preset-temp">
+          <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-dec" ${decMin ? 'disabled' : ''} title="−${CLIMATE_TARGET_STEP}°">−</button>
+          <span class="v ${tempOverridden ? 'overridden' : ''}">${targetVal}°</span>
+          <button data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-action="temp-inc" ${incMax ? 'disabled' : ''} title="+${CLIMATE_TARGET_STEP}°">+</button>
+        </div>
+        <div>
+          <select class="climate-preset-select ${hvacOverridden ? 'overridden' : ''}"
+                  data-cp-screen="${screen}" data-cp-scene="${sc.key}" data-cp-field="hvac_mode">
+            ${hvacExtra}
+            ${hvacOpts}
+          </select>
+        </div>
+        ${fanCellHtml}
+      `;
+    }).join('');
+
+    return `
+      <div class="climate-presets ${expanded ? 'expanded' : ''}" data-cp-section="${screen}">
+        <div class="climate-presets-head" data-cp-toggle="${screen}">
+          <ha-icon icon="mdi:tune-vertical"></ha-icon>
+          <span>${headerLabel}</span>
+          <span style="flex:1;"></span>
+          <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
+        </div>
+        <div class="climate-presets-body">
+          <div class="climate-preset-table ${showFan ? '' : 'no-fan'}">
+            <div class="climate-preset-th">Сцена</div>
+            <div class="climate-preset-th">Температура</div>
+            <div class="climate-preset-th">HVAC mode</div>
+            ${showFan ? '<div class="climate-preset-th">Fan mode</div>' : ''}
+            ${rows}
+          </div>
+          <div class="climate-presets-footer">
+            <span>Поля <span style="color:var(--bms-info);">синие</span> — переопределены интегратором.</span>
+            <button class="reset-btn" data-cp-reset="${screen}" ${hasAny ? '' : 'disabled'}>
+              <ha-icon icon="mdi:restore"></ha-icon> Сбросить на дефолт
+            </button>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -2473,6 +2798,84 @@ class BMSPanelEditor extends HTMLElement {
         cfg.entities[key] = null;
         this._markDirty();
         this._renderContent();
+      };
+    });
+
+    // ---- Climate Presets: toggle expand ----
+    $$('[data-cp-toggle]').forEach(head => {
+      head.onclick = () => {
+        const screen = head.dataset.cpToggle;
+        this._climatePresetsExpanded = this._climatePresetsExpanded || {};
+        this._climatePresetsExpanded[screen] = !this._climatePresetsExpanded[screen];
+        const sec = head.closest('.climate-presets');
+        if (sec) sec.classList.toggle('expanded');
+      };
+    });
+
+    // ---- Climate Presets: helpers ----
+    const setPreset = (screen, scene, field, value) => {
+      if (!cfg.climate_presets) cfg.climate_presets = {};
+      if (!cfg.climate_presets[screen]) cfg.climate_presets[screen] = {};
+      if (!cfg.climate_presets[screen][scene]) cfg.climate_presets[screen][scene] = {};
+      const defaults = CLIMATE_PRESET_DEFAULTS[screen]?.[scene] || {};
+      if (value === null || value === undefined || value === '' || value === defaults[field]) {
+        // Если возвращаем к дефолту — удаляем override (storage чище).
+        delete cfg.climate_presets[screen][scene][field];
+        if (!Object.keys(cfg.climate_presets[screen][scene]).length) {
+          delete cfg.climate_presets[screen][scene];
+        }
+        if (!Object.keys(cfg.climate_presets[screen]).length) {
+          delete cfg.climate_presets[screen];
+        }
+      } else {
+        cfg.climate_presets[screen][scene][field] = value;
+      }
+      this._markDirty();
+      this._softRefreshPreview();
+    };
+
+    // ---- Climate Presets: temp +/− ----
+    $$('[data-cp-action="temp-inc"], [data-cp-action="temp-dec"]').forEach(btn => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        const screen = btn.dataset.cpScreen;
+        const scene = btn.dataset.cpScene;
+        const dir = btn.dataset.cpAction === 'temp-inc' ? 1 : -1;
+        const eff = this._effectiveClimatePresets(screen, cfg);
+        const cur = eff[scene]?.target ?? 22;
+        let next = Math.round((cur + dir * CLIMATE_TARGET_STEP) * 2) / 2;
+        if (next < CLIMATE_TARGET_MIN) next = CLIMATE_TARGET_MIN;
+        if (next > CLIMATE_TARGET_MAX) next = CLIMATE_TARGET_MAX;
+        setPreset(screen, scene, 'target', next);
+        this._renderContent();
+      };
+    });
+
+    // ---- Climate Presets: hvac/fan dropdown ----
+    $$('.climate-preset-select').forEach(sel => {
+      sel.onchange = () => {
+        const screen = sel.dataset.cpScreen;
+        const scene = sel.dataset.cpScene;
+        const field = sel.dataset.cpField;
+        setPreset(screen, scene, field, sel.value);
+        // Минимальный re-render — обновляем CSS class «overridden» без полного перерендера.
+        this._renderContent();
+      };
+    });
+
+    // ---- Climate Presets: reset to defaults ----
+    $$('[data-cp-reset]').forEach(btn => {
+      btn.onclick = () => {
+        const screen = btn.dataset.cpReset;
+        this._confirmModal(
+          `Сбросить пресеты «${CLIMATE_PRESET_SCREEN_META[screen]?.label || screen}»?`,
+          'Все три сцены вернутся к дефолтным значениям. Это действие нельзя отменить.',
+          () => {
+            if (cfg.climate_presets) delete cfg.climate_presets[screen];
+            this._markDirty();
+            this._renderContent();
+            this._softRefreshPreview();
+          });
       };
     });
 
@@ -3943,29 +4346,34 @@ class BMSPanelEditor extends HTMLElement {
     // Иконки: APK использует ic_mode_cool / ic_mode_fire / ic_mode_dry / ic_mode_auto /
     // ic_set_clock. Соответствие MDI: snowflake (cool) / fire (heat) / leaf (eco) /
     // alpha-a-circle (комфорт=auto) / timer-outline (ручной).
-    const SCENES_BY_SCREEN = {
-      ac: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрое охлаждение',    t:22, mode:'cool', icon:'mdi:snowflake' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:25, mode:'cool', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',      t:28, mode:'cool', icon:'mdi:leaf' },
-      ],
-      heating: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрый прогрев',       t:23, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'никого дома',           t:18, mode:'heat', icon:'mdi:leaf' },
-      ],
-      floor: [
-        { key:'turbo',   lbl:'Турбо',   sub:'тёплая поверхность',    t:24, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'стяжка не остынет',     t:21, mode:'heat', icon:'mdi:leaf' },
-      ],
-      convector: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрый догрев',        t:24, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'тихий режим',           t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'экономия, frost-guard', t:18, mode:'heat', icon:'mdi:leaf' },
-      ],
+    //
+    // ВАЖНО: t / mode берутся из cfg.climate_presets[screen][scene] если задано,
+    // иначе из CLIMATE_PRESET_DEFAULTS. Preview обновляется live при правке в UI.
+    const SUBS_BY_SCREEN = {
+      ac: { turbo: 'быстрое охлаждение', comfort: 'повседневный режим', eco: 'экономия энергии' },
+      heating: { turbo: 'быстрый прогрев', comfort: 'повседневный режим', eco: 'никого дома' },
+      floor: { turbo: 'тёплая поверхность', comfort: 'повседневный режим', eco: 'стяжка не остынет' },
+      convector: { turbo: 'быстрый догрев', comfort: 'тихий режим', eco: 'экономия, frost-guard' },
     };
-    const SCENES = SCENES_BY_SCREEN[screen] || SCENES_BY_SCREEN.ac;
+    const ICON_BY_SCENE = {
+      turbo:   { ac: 'mdi:snowflake', _default: 'mdi:fire' },
+      comfort: { _default: 'mdi:alpha-a-circle-outline' },
+      eco:     { _default: 'mdi:leaf' },
+    };
+    const eff = this._effectiveClimatePresets(screen, cfg);
+    const subs = SUBS_BY_SCREEN[screen] || SUBS_BY_SCREEN.ac;
+    const SCENES = ['turbo', 'comfort', 'eco'].map(k => {
+      const p = eff[k] || {};
+      const iconMap = ICON_BY_SCENE[k] || {};
+      return {
+        key: k,
+        lbl: k === 'turbo' ? 'Турбо' : k === 'comfort' ? 'Комфорт' : 'Эко',
+        sub: subs[k] || '',
+        t: p.target ?? 22,
+        mode: p.hvac_mode || 'auto',
+        icon: iconMap[screen] || iconMap._default,
+      };
+    });
     // Active scene detection: совпадает по target temp ±0.5° (mode не проверяем —
     // в реальном APK active state хранится отдельно в App.state.climateActiveScenes,
     // но preview без state так что fallback на target match).
@@ -4014,7 +4422,7 @@ class BMSPanelEditor extends HTMLElement {
           <div class="nm">${esc(sc.lbl)}</div>
           ${sc.sub ? `<div class="sub">${esc(sc.sub)}</div>` : ''}
         </div>
-        <div class="t">${sc.t}°</div>
+        <div class="t">${Number.isInteger(sc.t) ? sc.t : sc.t.toFixed(1)}°</div>
       </button>
     `).join('');
     // «Ручной» row — отдельный (APK ManualPill), показывает текущий target когда active.
