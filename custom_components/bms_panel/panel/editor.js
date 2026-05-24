@@ -853,6 +853,63 @@ input[type=range] { width: 100%; }
 .pv-menu-grid .tl ha-icon { --mdc-icon-size: 42px; color: #fff; }
 .pv-menu-grid .tl .lb { font-size: 12px; opacity: 0.85; }
 .pv-menu-grid .tl.disabled { opacity: 0.3; cursor: not-allowed; }
+.pv-menu-grid .tl.tl-custom {
+  background: linear-gradient(135deg, rgba(58,91,255,0.18), rgba(20,20,22,0.55));
+  border-color: rgba(58,91,255,0.45);
+}
+.pv-menu-grid .tl.tl-custom ha-icon { color: #cdd9ff; }
+
+/* ---- Custom Cards editor (in Screens tab) ---- */
+.cc-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.cc-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: var(--card-background-color); border: 1px solid var(--divider-color);
+  border-radius: 8px;
+}
+.cc-row.has-error { border-color: var(--bms-error, #d33); background: rgba(211,47,47,0.05); }
+.cc-row .handle { cursor: grab; opacity: 0.45; }
+.cc-row.dragging { opacity: 0.55; }
+.cc-row.drag-over { border-color: var(--primary-color); }
+.cc-row .cc-icon { --mdc-icon-size: 28px; color: var(--primary-color); }
+.cc-row .cc-info { flex: 1; min-width: 0; }
+.cc-row .cc-info .nm { font-weight: 500; font-size: 14px; }
+.cc-row .cc-info .meta {
+  font-size: 11px; color: var(--secondary-text-color); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cc-row .cc-actions { display: flex; gap: 4px; }
+.cc-empty {
+  padding: 20px; text-align: center; opacity: 0.6; font-size: 13px;
+  border: 1px dashed var(--divider-color); border-radius: 8px; margin-top: 12px;
+}
+.cc-add-btn {
+  margin-top: 12px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  background: var(--primary-color); color: var(--text-primary-color);
+  border: none; font-weight: 500;
+}
+.cc-add-btn:hover { opacity: 0.92; }
+
+/* Modal for editing one card */
+.cc-modal-body { display: flex; flex-direction: column; gap: 14px; padding: 4px; }
+.cc-modal-body label { font-size: 13px; opacity: 0.85; }
+.cc-modal-body input, .cc-modal-body select, .cc-modal-body textarea {
+  width: 100%; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--divider-color); background: var(--card-background-color);
+  color: var(--primary-text-color); font-size: 14px; box-sizing: border-box;
+}
+.cc-modal-body textarea { font-family: monospace; font-size: 12px; min-height: 64px; resize: vertical; }
+.cc-action-tabs { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.cc-action-tab {
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  background: var(--card-background-color); border: 1px solid var(--divider-color);
+}
+.cc-action-tab.active {
+  background: var(--primary-color); color: var(--text-primary-color);
+  border-color: var(--primary-color);
+}
+.cc-lang-row { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: center; }
+.cc-lang-row .l { font-size: 12px; opacity: 0.7; text-transform: uppercase; }
 
 /* Empty hint when binding missing */
 .pv-empty {
@@ -935,8 +992,18 @@ class BMSPanelEditor extends HTMLElement {
     if (first) {
       this._renderShell();
       this._loadPanels();
+      this._refresh();
+      return;
     }
-    this._refresh();
+    // hass-update (state change у одного из entity) — НЕ перетряхиваем
+    // весь UI. Sidebar и content (где правят конфиг) обновляются только при
+    // явных user-actions; здесь только мягко перерисовываем превью, чтобы
+    // лампочки/градусы дотягивались до новой реальности без race с кликом
+    // юзера по табам preview.
+    this._softRefreshPreview();
+    // Top-bar — недорогой, дёргает validate() который полезно прогнать на новых
+    // states (V22/V23 — entity исчезла/unavailable).
+    this._renderTopBar();
   }
   set narrow(_) {}
   set route(_) {}
@@ -1027,6 +1094,7 @@ class BMSPanelEditor extends HTMLElement {
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
       area_id:        attrs.area_id || null,
+      custom_cards:   Array.isArray(attrs.custom_cards) ? attrs.custom_cards : [],
     };
   }
 
@@ -1094,6 +1162,41 @@ class BMSPanelEditor extends HTMLElement {
 
   _refreshPreviewOnly() {
     this._renderPreviewPane();
+  }
+
+  // Лёгкий апдейт превью под входящие state-changes из hass.
+  // Не пересоздаёт скелет панели (head + screen-picker), только перерисовывает
+  // содержимое выбранного экрана. Это исключает race-condition когда юзер
+  // кликает по «Свет» а в следующий тик `set hass` сбрасывает HTML pane и
+  // его click-handler ещё не успел отработать.
+  _softRefreshPreview() {
+    const pane = this.shadowRoot.getElementById('preview-pane');
+    if (!pane || !this._previewExpanded) return;
+    // Если ещё не было полного рендера (нет body div) — делаем полный рендер.
+    const body = pane.querySelector('.preview-body');
+    const picker = pane.querySelector('.preview-screen-picker');
+    if (!body || !picker) {
+      this._renderPreviewPane();
+      return;
+    }
+    const panel = this._activePanel();
+    if (!panel) return;
+    const cfg = this._workingConfig(panel);
+    const enabled = this._enabledScreens(cfg);
+    // Если выбранный экран теперь выключен — отщёлкиваем на home.
+    if (this._previewScreen !== 'home' && this._previewScreen !== 'menu' &&
+        !enabled.includes(this._previewScreen)) {
+      this._previewScreen = 'home';
+    }
+    // Re-render только body, без перетряхивания screen-picker и head.
+    body.innerHTML = this._renderPreviewScreen(panel, cfg);
+    // Обновляем active class на picker — без innerHTML, иначе click-handler потеряется.
+    picker.querySelectorAll('[data-pv-screen]').forEach(el => {
+      el.classList.toggle('active', el.dataset.pvScreen === this._previewScreen);
+    });
+    // Перепривязываем только body-локальные события (не picker — они уже привязаны).
+    this._wirePreviewBodyEvents(panel, cfg);
+    this._ensurePreviewClock();
   }
 
   _renderTopBar() {
@@ -1482,6 +1585,78 @@ class BMSPanelEditor extends HTMLElement {
               <div>${esc(i.message)} ${i.fix_hint ? `<span style="opacity:0.8;">${esc(i.fix_hint)}</span>` : ''}</div>
             </div>
           `).join('')}
+      </div>
+
+      ${this._renderCustomCardsCard(panel, issues)}
+    `;
+  }
+
+  // ---- Custom Cards UI ----
+  _renderCustomCardsCard(panel, issues) {
+    const cfg = this._workingConfig(panel);
+    const cards = Array.isArray(cfg.custom_cards) ? cfg.custom_cards : [];
+    const cardIssues = issues.filter(i => i.anchor.type === 'custom_card' || (i.anchor.type === 'card' && i.anchor.key === 'custom_cards'));
+
+    const rows = cards.map((c, i) => {
+      const label = c.label?.ru || c.id;
+      const icon = c.icon || 'mdi:card-text-outline';
+      const action = c.action || {};
+      let meta = '—';
+      if (action.type === 'service')   meta = `Сервис: ${action.service || '—'}`;
+      else if (action.type === 'entity')   meta = `Открыть: ${action.entity_id || '—'}`;
+      else if (action.type === 'toggle')   meta = `Toggle: ${action.entity_id || '—'}`;
+      else if (action.type === 'dashboard') meta = `URL: ${action.url || '—'}`;
+      const rowHasErr = cardIssues.some(it => it.severity === 'error' && it.anchor.card_id === c.id);
+      return `
+        <div class="cc-row ${rowHasErr ? 'has-error' : ''}" draggable="true" data-cc-id="${esc(c.id)}" data-cc-idx="${i}">
+          <ha-icon class="handle" icon="mdi:drag-horizontal-variant" title="Перетащите"></ha-icon>
+          <ha-icon class="cc-icon" icon="${esc(icon)}"></ha-icon>
+          <div class="cc-info">
+            <div class="nm">${esc(label)}</div>
+            <div class="meta">${esc(meta)}</div>
+          </div>
+          <div class="cc-actions">
+            <button class="btn ghost" data-cc-action="edit" data-cc-id="${esc(c.id)}" title="Редактировать">
+              <ha-icon icon="mdi:pencil"></ha-icon>
+            </button>
+            <button class="btn ghost" data-cc-action="delete" data-cc-id="${esc(c.id)}" title="Удалить">
+              <ha-icon icon="mdi:delete-outline"></ha-icon>
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    const emptyHtml = !cards.length
+      ? `<div class="cc-empty">
+           Кастомных карточек пока нет.<br>
+           Добавьте свою — она появится в Меню рядом со стандартными плитками
+           (Свет / Шторы / Кондиционер / …).
+         </div>`
+      : '';
+
+    const issueHtml = cardIssues.length
+      ? cardIssues.map(i => `
+        <div class="inline-issue ${i.severity}" style="margin-top:8px;">
+          <ha-icon icon="${i.severity === 'error' ? 'mdi:alert-circle' : 'mdi:alert'}"></ha-icon>
+          <div>${esc(i.message)} ${i.fix_hint ? `<span style="opacity:0.8;">${esc(i.fix_hint)}</span>` : ''}</div>
+        </div>
+      `).join('')
+      : '';
+
+    return `
+      <div class="card">
+        <h3 class="card-title">Кастомные карточки в Меню</h3>
+        <div class="card-sub">
+          Свои плитки в Меню (3×3 grid) — каждая со своим названием, иконкой и действием:
+          вызов сервиса (script.morning_routine), быстрый toggle устройства, открытие entity
+          или переход на дашборд. На устройстве они появятся <b>после</b> стандартных плиток.
+        </div>
+        <div class="cc-list" id="cc-list">${rows}</div>
+        ${emptyHtml}
+        ${issueHtml}
+        <button class="cc-add-btn" id="btn-add-card">
+          <ha-icon icon="mdi:plus"></ha-icon> Добавить карточку
+        </button>
       </div>
     `;
   }
@@ -1942,6 +2117,268 @@ class BMSPanelEditor extends HTMLElement {
         cfg.screens[screen].enabled = true;
         this._markDirty();
         this._renderContent();
+      };
+    });
+
+    // ---- Custom Cards: add ----
+    const btnAddCard = $('#btn-add-card');
+    if (btnAddCard) btnAddCard.onclick = () => this._showCustomCardEditor(panel, null);
+
+    // ---- Custom Cards: edit / delete ----
+    $$('[data-cc-action="edit"]').forEach(btn => {
+      btn.onclick = () => {
+        const cid = btn.dataset.ccId;
+        this._showCustomCardEditor(panel, cid);
+      };
+    });
+    $$('[data-cc-action="delete"]').forEach(btn => {
+      btn.onclick = () => {
+        const cid = btn.dataset.ccId;
+        const card = (cfg.custom_cards || []).find(c => c.id === cid);
+        const label = card?.label?.ru || cid;
+        this._confirmModal(
+          `Удалить карточку «${label}»?`,
+          'Действие нельзя отменить.',
+          () => {
+            cfg.custom_cards = (cfg.custom_cards || []).filter(c => c.id !== cid);
+            this._markDirty();
+            this._renderContent();
+            this._softRefreshPreview();
+          });
+      };
+    });
+
+    // ---- Custom Cards: drag-drop reorder ----
+    let ccDrag = null;
+    $$('.cc-row').forEach(row => {
+      row.ondragstart = e => {
+        ccDrag = row;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      row.ondragend = () => {
+        row.classList.remove('dragging');
+        $$('.cc-row').forEach(r => r.classList.remove('drag-over'));
+        const ids = [...this.shadowRoot.querySelectorAll('#cc-list .cc-row')].map(r => r.dataset.ccId);
+        cfg.custom_cards = ids
+          .map(id => (cfg.custom_cards || []).find(c => c.id === id))
+          .filter(Boolean);
+        this._markDirty();
+        this._softRefreshPreview();
+      };
+      row.ondragover = e => { e.preventDefault(); row.classList.add('drag-over'); };
+      row.ondragleave = () => row.classList.remove('drag-over');
+      row.ondrop = e => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        if (!ccDrag || ccDrag === row) return;
+        const parent = row.parentNode;
+        const dragIdx = [...parent.children].indexOf(ccDrag);
+        const dropIdx = [...parent.children].indexOf(row);
+        if (dragIdx < dropIdx) parent.insertBefore(ccDrag, row.nextSibling);
+        else parent.insertBefore(ccDrag, row);
+      };
+    });
+  }
+
+  // -------- Reusable simple confirm modal --------
+  _confirmModal(title, msg, onYes) {
+    this._showModal(`
+      <div class="modal">
+        <h3>${esc(title)}</h3>
+        ${msg ? `<p style="color: var(--secondary-text-color); font-size: 13px; margin: 0 0 16px;">${esc(msg)}</p>` : ''}
+        <div class="modal-actions">
+          <button class="btn" id="cancel">Отмена</button>
+          <button class="btn primary" id="ok">OK</button>
+        </div>
+      </div>
+    `, (root, close) => {
+      root.querySelector('#cancel').onclick = close;
+      root.querySelector('#ok').onclick = () => { close(); onYes && onYes(); };
+    });
+  }
+
+  // -------- Custom Card editor (add / edit) --------
+  _showCustomCardEditor(panel, editId) {
+    const cfg = this._workingConfig(panel);
+    if (!Array.isArray(cfg.custom_cards)) cfg.custom_cards = [];
+
+    const existing = editId ? cfg.custom_cards.find(c => c.id === editId) : null;
+    // Default skeleton for new card
+    const card = existing ? JSON.parse(JSON.stringify(existing)) : {
+      id: 'cc_' + Math.random().toString(36).slice(2, 10),
+      label: { ru: '', en: '', uz: '' },
+      icon: 'mdi:star-outline',
+      action: { type: 'service', service: '' },
+    };
+
+    const allEntities = this._hass ? Object.keys(this._hass.states).sort() : [];
+
+    const renderActionFields = (a) => {
+      if (a.type === 'service') {
+        return `
+          <label>HA service (domain.service)</label>
+          <input type="text" id="cc-service" value="${esc(a.service || '')}"
+                 placeholder="script.morning_routine" autocomplete="off">
+          <label style="margin-top:8px;">Доп. данные (опц., JSON)</label>
+          <textarea id="cc-service-data" placeholder='{"brightness": 100}'>${esc(a.data ? JSON.stringify(a.data) : '')}</textarea>
+        `;
+      }
+      if (a.type === 'entity' || a.type === 'toggle') {
+        const opts = ['<option value="">— выберите —</option>']
+          .concat(allEntities.map(e => `<option value="${esc(e)}" ${e===a.entity_id?'selected':''}>${esc(e)}</option>`))
+          .join('');
+        const hint = a.type === 'toggle'
+          ? 'Один тап — переключит entity (homeassistant.toggle). Для лампы/розетки/выключателя.'
+          : 'Один тап — откроет детальную карточку (more-info dialog) с управлением.';
+        return `
+          <label>Entity</label>
+          <select id="cc-entity">${opts}</select>
+          <div style="font-size:11px; opacity:0.65; margin-top:4px;">${esc(hint)}</div>
+        `;
+      }
+      if (a.type === 'dashboard') {
+        return `
+          <label>Путь к дашборду</label>
+          <input type="text" id="cc-url" value="${esc(a.url || '')}" placeholder="/lovelace/0">
+          <div style="font-size:11px; opacity:0.65; margin-top:4px;">
+            Например: /lovelace/0, /dashboard-energy. Реальный переход выполнит APK.
+          </div>
+        `;
+      }
+      return '';
+    };
+
+    const initialActionHtml = renderActionFields(card.action);
+
+    this._showModal(`
+      <div class="modal" style="max-width: 520px;">
+        <h3>${editId ? 'Редактировать карточку' : 'Новая карточка'}</h3>
+        <div class="cc-modal-body">
+          <div>
+            <label>Иконка (Material Design Icon)</label>
+            <input type="text" id="cc-icon" value="${esc(card.icon)}" placeholder="mdi:weather-sunny">
+            <div style="font-size:11px; opacity:0.65; margin-top:4px;">
+              Список: <a href="https://pictogrammers.com/library/mdi/" target="_blank" rel="noopener">pictogrammers.com</a> (префикс <code>mdi:</code>).
+            </div>
+          </div>
+
+          <div>
+            <label>Название</label>
+            <div class="cc-lang-row">
+              <div class="l">RU *</div>
+              <input type="text" id="cc-label-ru" value="${esc(card.label?.ru || '')}" placeholder="Утро" maxlength="40">
+            </div>
+            <div class="cc-lang-row" style="margin-top:6px;">
+              <div class="l">EN</div>
+              <input type="text" id="cc-label-en" value="${esc(card.label?.en || '')}" placeholder="Morning" maxlength="40">
+            </div>
+            <div class="cc-lang-row" style="margin-top:6px;">
+              <div class="l">UZ</div>
+              <input type="text" id="cc-label-uz" value="${esc(card.label?.uz || '')}" placeholder="Ertalab" maxlength="40">
+            </div>
+          </div>
+
+          <div>
+            <label>Действие при тапе</label>
+            <div class="cc-action-tabs" id="cc-action-tabs">
+              <div class="cc-action-tab ${card.action.type === 'service' ? 'active' : ''}" data-at="service">
+                <ha-icon icon="mdi:script-text-play-outline" style="--mdc-icon-size:16px;"></ha-icon> Сервис
+              </div>
+              <div class="cc-action-tab ${card.action.type === 'toggle' ? 'active' : ''}" data-at="toggle">
+                <ha-icon icon="mdi:toggle-switch-outline" style="--mdc-icon-size:16px;"></ha-icon> Toggle
+              </div>
+              <div class="cc-action-tab ${card.action.type === 'entity' ? 'active' : ''}" data-at="entity">
+                <ha-icon icon="mdi:information-outline" style="--mdc-icon-size:16px;"></ha-icon> Открыть entity
+              </div>
+              <div class="cc-action-tab ${card.action.type === 'dashboard' ? 'active' : ''}" data-at="dashboard">
+                <ha-icon icon="mdi:view-dashboard-outline" style="--mdc-icon-size:16px;"></ha-icon> Дашборд
+              </div>
+            </div>
+            <div id="cc-action-fields">${initialActionHtml}</div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="cancel">Отмена</button>
+          <button class="btn primary" id="ok">${editId ? 'Сохранить' : 'Добавить'}</button>
+        </div>
+      </div>
+    `, (root, close) => {
+      const $ = (s) => root.querySelector(s);
+
+      // Action-type tab switcher — переключает форму, не сохраняет ничего пока юзер не нажмёт OK.
+      root.querySelectorAll('#cc-action-tabs .cc-action-tab').forEach(tab => {
+        tab.onclick = () => {
+          root.querySelectorAll('#cc-action-tabs .cc-action-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          const t = tab.dataset.at;
+          // Replace action object skeleton for the new type (preserve nothing — это новые поля)
+          card.action = { type: t };
+          $('#cc-action-fields').innerHTML = renderActionFields(card.action);
+        };
+      });
+
+      $('#cancel').onclick = close;
+      $('#ok').onclick = () => {
+        // Собираем данные
+        const ru = $('#cc-label-ru').value.trim();
+        if (!ru) {
+          this._toast('Заполните русское название', 'warn', { duration: 2200 });
+          return;
+        }
+        card.icon = $('#cc-icon').value.trim() || 'mdi:star-outline';
+        card.label = {
+          ru,
+          en: $('#cc-label-en').value.trim(),
+          uz: $('#cc-label-uz').value.trim(),
+        };
+        const activeTab = root.querySelector('#cc-action-tabs .cc-action-tab.active');
+        const atype = activeTab ? activeTab.dataset.at : card.action.type;
+        if (atype === 'service') {
+          const svc = ($('#cc-service')?.value || '').trim();
+          if (!svc.includes('.')) {
+            this._toast('Сервис должен быть в формате domain.service', 'warn', { duration: 2400 });
+            return;
+          }
+          const dataRaw = ($('#cc-service-data')?.value || '').trim();
+          let data = null;
+          if (dataRaw) {
+            try { data = JSON.parse(dataRaw); }
+            catch (e) {
+              this._toast('Поле «Доп. данные» — невалидный JSON', 'error', { duration: 2800 });
+              return;
+            }
+          }
+          card.action = { type: 'service', service: svc };
+          if (data) card.action.data = data;
+        } else if (atype === 'entity' || atype === 'toggle') {
+          const eid = $('#cc-entity')?.value || '';
+          if (!eid.includes('.')) {
+            this._toast('Выберите entity', 'warn', { duration: 2200 });
+            return;
+          }
+          card.action = { type: atype, entity_id: eid };
+        } else if (atype === 'dashboard') {
+          const url = ($('#cc-url')?.value || '').trim();
+          if (!url) {
+            this._toast('Введите URL дашборда', 'warn', { duration: 2200 });
+            return;
+          }
+          card.action = { type: 'dashboard', url };
+        }
+
+        // Save in cfg
+        if (editId) {
+          const idx = cfg.custom_cards.findIndex(c => c.id === editId);
+          if (idx >= 0) cfg.custom_cards[idx] = card;
+          else cfg.custom_cards.push(card);
+        } else {
+          cfg.custom_cards.push(card);
+        }
+        this._markDirty();
+        close();
+        this._renderContent();
+        this._softRefreshPreview();
       };
     });
   }
@@ -2780,8 +3217,8 @@ class BMSPanelEditor extends HTMLElement {
 
   _pvSetPending(eid, state, attrs = {}) {
     this._previewPending.set(eid, { state, attrs, expires_at: Date.now() + 3000 });
-    // Trigger re-render so user sees instant feedback
-    setTimeout(() => this._renderPreviewPane(), 30);
+    // Soft refresh — без перерисовки picker'а, чтобы не порвать click handlers.
+    setTimeout(() => this._softRefreshPreview(), 30);
   }
 
   // ============ HOME ============
@@ -2860,11 +3297,14 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   // ============ MENU ============
+  // Системные плитки (Свет/Шторы/AC/...) + кастомные плитки интегратора.
+  // Кастомные показываются ПОСЛЕ системных в порядке как заданы в config.
   _pvMenu(cfg) {
     const enabled = this._enabledScreens(cfg);
-    const tiles = ['light','curtain','music','ac','heating','floor','convector','ventilation','menu_dummy'];
-    const grid = tiles.map(key => {
-      if (key === 'menu_dummy') return `<div class="tl disabled" style="visibility:hidden;"></div>`;
+    const systemTiles = ['light','curtain','music','ac','heating','floor','convector','ventilation'];
+    const customCards = Array.isArray(cfg.custom_cards) ? cfg.custom_cards : [];
+
+    const sysHtml = systemTiles.map(key => {
       const m = SCREEN_META[key];
       const on = enabled.includes(key);
       return `
@@ -2873,10 +3313,27 @@ class BMSPanelEditor extends HTMLElement {
           <div class="lb">${esc(m.ru)}</div>
         </div>`;
     }).join('');
+
+    const customHtml = customCards.map(card => {
+      const label = card.label?.ru || card.id;
+      const icon = card.icon || 'mdi:card-text-outline';
+      return `
+        <div class="tl tl-custom" data-pv-action="custom-card" data-card-id="${esc(card.id)}"
+             title="${esc(card.action?.type || '')}">
+          <ha-icon icon="${esc(icon)}"></ha-icon>
+          <div class="lb">${esc(label)}</div>
+        </div>`;
+    }).join('');
+
+    // Заполнители, чтобы grid выглядел опрятно если плиток < 9.
+    const total = systemTiles.length + customCards.length;
+    const pad = Math.max(0, 9 - (total % 9 || 9)) % 9;
+    const padHtml = '<div class="tl disabled" style="visibility:hidden;"></div>'.repeat(pad);
+
     return this._pvWrap(`
       ${this._pvHeader('Меню')}
       <div class="pv-content">
-        <div class="pv-menu-grid">${grid}</div>
+        <div class="pv-menu-grid">${sysHtml}${customHtml}${padHtml}</div>
       </div>
     `);
   }
@@ -3073,20 +3530,42 @@ class BMSPanelEditor extends HTMLElement {
     if (!pane) return;
     const $$ = (sel) => pane.querySelectorAll(sel);
 
-    // Screen picker (top of pane)
+    // Screen picker (top of pane) — навешиваем ОДИН раз при полном рендере pane.
+    // Дальше state-changes hass идут через _softRefreshPreview() который не
+    // трогает HTML picker'а — значит и handler не теряется.
     $$('[data-pv-screen]').forEach(el => {
       el.onclick = () => {
         if (el.classList.contains('disabled')) {
           this._toast('Экран выключен — включите его в «Экраны»', 'warn', { duration: 2200 });
           return;
         }
+        // Меняем _previewScreen МГНОВЕННО, без debounce. Soft refresh
+        // обновляет body + active-class на picker — это дёшево.
         this._previewScreen = el.dataset.pvScreen;
-        this._renderPreviewPane();
+        this._softRefreshPreview();
       };
     });
 
+    // События внутри body (home-nav, menu tiles, кнопки экранов и т.д.).
+    this._wirePreviewBodyEvents(panel, cfg);
+  }
+
+  // Все события которые внутри .preview-body. Вынесено отдельно, потому что
+  // soft refresh пере-рендерит только body и должен перепривязать только эти.
+  _wirePreviewBodyEvents(panel, cfg) {
+    const pane = this.shadowRoot.getElementById('preview-pane');
+    if (!pane) return;
+    const body = pane.querySelector('.preview-body');
+    if (!body) return;
+    const $$ = (sel) => body.querySelectorAll(sel);
+
     // Nav inside preview (home-nav + menu tiles + back button)
-    $$('[data-pv-action="nav-home"]').forEach(el => { el.onclick = () => { this._previewScreen = 'home'; this._renderPreviewPane(); }; });
+    $$('[data-pv-action="nav-home"]').forEach(el => {
+      el.onclick = () => {
+        this._previewScreen = 'home';
+        this._softRefreshPreview();
+      };
+    });
     $$('[data-pv-action="nav-to"]').forEach(el => {
       el.onclick = () => {
         const tgt = el.dataset.target;
@@ -3096,7 +3575,17 @@ class BMSPanelEditor extends HTMLElement {
           return;
         }
         this._previewScreen = tgt;
-        this._renderPreviewPane();
+        this._softRefreshPreview();
+      };
+    });
+
+    // ---- Custom card actions in Menu preview ----
+    $$('[data-pv-action="custom-card"]').forEach(el => {
+      el.onclick = () => {
+        const cid = el.dataset.cardId;
+        const card = (cfg.custom_cards || []).find(c => c.id === cid);
+        if (!card) return;
+        this._runCustomCardAction(card);
       };
     });
 
@@ -3174,13 +3663,68 @@ class BMSPanelEditor extends HTMLElement {
         this._toast(`Ошибка ${domain}.${service}: ${err.message || err}`, 'error', { duration: 3500 });
         // Roll back pending on error
         if (data.entity_id) this._previewPending.delete(data.entity_id);
-        this._renderPreviewPane();
+        this._softRefreshPreview();
       });
+  }
+
+  // ========== CUSTOM CARD ACTION DISPATCH ==========
+  // Вызывается при клике на custom card в превью Menu. Реальный side-effect в HA.
+  _runCustomCardAction(card) {
+    if (!this._hass) return;
+    const action = card.action || {};
+    const label = card.label?.ru || card.id;
+    try {
+      if (action.type === 'service') {
+        const [dom, svc] = (action.service || '').split('.');
+        if (!dom || !svc) {
+          this._toast(`Карточка «${label}»: сервис не задан`, 'error', { duration: 2200 });
+          return;
+        }
+        this._hass.callService(dom, svc, action.data || {})
+          .then(() => this._toast(`Запущено: ${label}`, 'success', { duration: 1500 }))
+          .catch(e => this._toast(`Ошибка ${dom}.${svc}: ${e.message || e}`, 'error', { duration: 3500 }));
+      } else if (action.type === 'toggle') {
+        const eid = action.entity_id;
+        if (!eid) {
+          this._toast(`Карточка «${label}»: устройство не выбрано`, 'error', { duration: 2200 });
+          return;
+        }
+        const dom = eid.split('.')[0];
+        // homeassistant.toggle работает для большинства доменов
+        this._hass.callService('homeassistant', 'toggle', { entity_id: eid })
+          .then(() => this._toast(`${label}: toggle`, 'success', { duration: 1500 }))
+          .catch(e => this._toast(`Ошибка toggle: ${e.message || e}`, 'error', { duration: 3500 }));
+      } else if (action.type === 'entity') {
+        const eid = action.entity_id;
+        if (!eid) {
+          this._toast(`Карточка «${label}»: устройство не выбрано`, 'error', { duration: 2200 });
+          return;
+        }
+        // Открываем стандартный HA more-info dialog. На устройстве это будет
+        // bottom-sheet с управлением entity.
+        this.dispatchEvent(new CustomEvent('hass-more-info', {
+          detail: { entityId: eid },
+          bubbles: true,
+          composed: true,
+        }));
+      } else if (action.type === 'dashboard') {
+        const url = action.url;
+        if (!url) {
+          this._toast(`Карточка «${label}»: URL не задан`, 'error', { duration: 2200 });
+          return;
+        }
+        // В превью просто покажем toast — реальный переход делается в APK.
+        // Если URL начинается с / — это HA-локальный путь.
+        this._toast(`Открыть: ${url}`, 'info', { duration: 2500 });
+      }
+    } catch (err) {
+      this._toast(`Ошибка действия: ${err.message || err}`, 'error', { duration: 3500 });
+    }
   }
 }
 
 customElements.define('bms-panel-editor', BMSPanelEditor);
 
-console.info('%c BMS-PANEL %c 2.1.0 — live preview ',
+console.info('%c BMS-PANEL %c 2.1.1 — custom cards + preview fix ',
   'color:#fff;background:#3a5bff;padding:2px 6px;border-radius:3px 0 0 3px',
   'color:#3a5bff;background:#f0f4ff;padding:2px 6px;border-radius:0 3px 3px 0');

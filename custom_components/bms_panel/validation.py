@@ -15,6 +15,8 @@ from .const import (
     BG_DIM_MAX,
     BG_DIM_MIN,
     BIND_KEYS,
+    CUSTOM_CARD_ACTION_TYPES,
+    CUSTOM_CARD_MAX,
     HOME_NAV_OPTIONS,
     HOME_NAV_REQUIRED_LEN,
     LANGUAGES,
@@ -408,6 +410,120 @@ def validate(
             "Один и тот же исполнитель в нескольких слотах — команды экранов будут конфликтовать.",
             {"type": "duplicate_self", "entity_id": eid},
         ))
+
+    # --- E. Custom Cards ---
+    cards = cfg.get("custom_cards") or []
+    if not isinstance(cards, list):
+        cards = []
+
+    if len(cards) > CUSTOM_CARD_MAX:
+        issues.append(Issue(
+            "V60", SEV_ERROR,
+            f"Слишком много кастомных карточек: {len(cards)} (максимум {CUSTOM_CARD_MAX}).",
+            "Удалите лишние карточки.",
+            {"type": "card", "key": "custom_cards"},
+        ))
+
+    seen_card_ids: set[str] = set()
+    for idx, card in enumerate(cards):
+        if not isinstance(card, dict):
+            issues.append(Issue(
+                f"V61_{idx}", SEV_ERROR,
+                f"Кастомная карточка #{idx+1}: некорректный формат.",
+                "Удалите её и создайте заново.",
+                {"type": "custom_card", "index": idx},
+            ))
+            continue
+        cid = card.get("id")
+        if not cid or not isinstance(cid, str):
+            issues.append(Issue(
+                f"V61_{idx}", SEV_ERROR,
+                f"Кастомная карточка #{idx+1}: нет id.",
+                "Удалите её и создайте заново через UI — id присваивается автоматически.",
+                {"type": "custom_card", "index": idx},
+            ))
+            continue
+        if cid in seen_card_ids:
+            issues.append(Issue(
+                f"V62_{cid}", SEV_ERROR,
+                f"Дубликат id у кастомной карточки: «{cid}».",
+                "Удалите дубликат — id должен быть уникальным.",
+                {"type": "custom_card", "card_id": cid},
+            ))
+        seen_card_ids.add(cid)
+
+        label = card.get("label") or {}
+        ru_label = (label.get("ru") if isinstance(label, dict) else "") or ""
+        if not isinstance(ru_label, str) or not ru_label.strip():
+            issues.append(Issue(
+                f"V63_{cid}", SEV_ERROR,
+                f"У кастомной карточки «{cid}» не задано русское название.",
+                "Заполните поле «Название (RU)» — это обязательное поле.",
+                {"type": "custom_card", "card_id": cid},
+            ))
+
+        icon = card.get("icon") or ""
+        if not isinstance(icon, str) or ":" not in icon:
+            issues.append(Issue(
+                f"V64_{cid}", SEV_WARN,
+                f"У карточки «{cid}» странная иконка («{icon}»).",
+                "Иконка должна быть mdi:… (например mdi:weather-sunny).",
+                {"type": "custom_card", "card_id": cid},
+            ))
+
+        action = card.get("action") or {}
+        if not isinstance(action, dict):
+            issues.append(Issue(
+                f"V65_{cid}", SEV_ERROR,
+                f"У карточки «{cid}» нет действия.",
+                "Выберите тип действия (service / entity / toggle / dashboard).",
+                {"type": "custom_card", "card_id": cid},
+            ))
+            continue
+        atype = action.get("type")
+        if atype not in CUSTOM_CARD_ACTION_TYPES:
+            issues.append(Issue(
+                f"V65_{cid}", SEV_ERROR,
+                f"У карточки «{cid}» неизвестный тип действия: «{atype}».",
+                f"Допустимы: {', '.join(CUSTOM_CARD_ACTION_TYPES)}.",
+                {"type": "custom_card", "card_id": cid},
+            ))
+            continue
+
+        if atype == "service":
+            svc = action.get("service") or ""
+            if "." not in svc:
+                issues.append(Issue(
+                    f"V66_{cid}", SEV_ERROR,
+                    f"У карточки «{ru_label or cid}» сервис задан в неверном формате.",
+                    "Формат: domain.service (например script.morning_routine).",
+                    {"type": "custom_card", "card_id": cid},
+                ))
+        elif atype in ("entity", "toggle"):
+            eid = action.get("entity_id") or ""
+            if "." not in eid:
+                issues.append(Issue(
+                    f"V66_{cid}", SEV_ERROR,
+                    f"У карточки «{ru_label or cid}» не выбрано устройство.",
+                    "Выберите entity из списка.",
+                    {"type": "custom_card", "card_id": cid},
+                ))
+            elif states is not None and not _has_state(states, eid):
+                issues.append(Issue(
+                    f"V67_{cid}", SEV_ERROR,
+                    f"У карточки «{ru_label or cid}» entity «{eid}» больше не существует.",
+                    "Возможно его удалили или переименовали. Выберите другой.",
+                    {"type": "custom_card", "card_id": cid},
+                ))
+        elif atype == "dashboard":
+            url = action.get("url") or ""
+            if not url:
+                issues.append(Issue(
+                    f"V66_{cid}", SEV_ERROR,
+                    f"У карточки «{ru_label or cid}» не указан URL.",
+                    "Введите путь дашборда (например /lovelace/0).",
+                    {"type": "custom_card", "card_id": cid},
+                ))
 
     return issues
 

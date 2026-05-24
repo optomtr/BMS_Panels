@@ -67,6 +67,17 @@ BG_DIM_MIN, BG_DIM_MAX = 0, 100
 SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600]  # секунды
 LANGUAGES = ["English", "Русский"]
 
+# ---- Custom Cards (пользовательские плитки в Меню) ----
+# Интегратор может добавить свои карточки в 3×3 Menu — каждая со своим действием.
+# Поддерживаемые типы action:
+#   service   → вызвать HA service (domain.service)
+#   entity    → открыть детальный bottom-sheet для одного entity
+#   toggle    → быстро переключить single entity (homeassistant.toggle)
+#   dashboard → открыть произвольный HA URL (для перехода между дашбордами)
+CUSTOM_CARD_ACTION_TYPES = ["service", "entity", "toggle", "dashboard"]
+CUSTOM_CARD_MAX = 16  # практический предел — 16 кастомных + 8 системных = 24 плитки
+CUSTOM_CARD_LABEL_LANGS = ["ru", "en", "uz"]
+
 # ---- Дефолтная конфигурация ----
 DEFAULT_CONFIG = {
     "schema_version": CONFIG_SCHEMA_VERSION,
@@ -93,6 +104,8 @@ DEFAULT_CONFIG = {
     "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},
     # area_id привязки HA — для группировки entity автоматически
     "area_id": None,
+    # Кастомные карточки в Menu — по умолчанию пусто, интегратор добавляет в UI.
+    "custom_cards": [],
 }
 
 # ---- Сервисы ----

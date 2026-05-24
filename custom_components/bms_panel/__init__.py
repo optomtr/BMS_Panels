@@ -96,6 +96,9 @@ _MERGE_STRATEGY = {
     "language":       "replace",
     "area_id":        "replace",
     "schema_version": "replace",
+    # custom_cards: replace целиком — UI всегда шлёт полный список,
+    # partial merge картинку только запутает (как чинить дубликаты id?).
+    "custom_cards":   "replace",
 }
 
 

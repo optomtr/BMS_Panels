@@ -14,6 +14,9 @@ from .const import (
     BG_DIM_MIN,
     BIND_KEYS,
     CONFIG_SCHEMA_VERSION,
+    CUSTOM_CARD_ACTION_TYPES,
+    CUSTOM_CARD_LABEL_LANGS,
+    CUSTOM_CARD_MAX,
     DEFAULT_CONFIG,
     HOME_NAV_OPTIONS,
     HOME_NAV_REQUIRED_LEN,
@@ -70,14 +73,86 @@ def _bind_value(meta):
     return _entity_list if meta["multi"] else _entity_value
 
 
-ENTITIES_SCHEMA = vol.Schema(
-    {vol.Optional(key): _bind_value(meta) for key, meta in BIND_KEYS.items()},
-    # REMOVE_EXTRA — старые ключи (ac_temp_sensor, ac_fan и т.д.) дропаются
-    # тихо, чтобы единичная ошибка не сбросила ВЕСЬ конфиг до DEFAULT.
-    # Полноценная миграция этих ключей живёт в _migrate_entities, она должна
-    # отработать ДО ENTITIES_SCHEMA — см. migrate_storage().
-    extra=vol.REMOVE_EXTRA,
-)
+ENTITIES_SCHEMA = vol.Schema({
+    vol.Optional(key): _bind_value(meta) for key, meta in BIND_KEYS.items()
+})
+
+
+# ---------- Custom Cards (пользовательские плитки в Menu) ----------
+
+CUSTOM_CARD_LABEL_SCHEMA = vol.Schema({
+    vol.Required("ru"): vol.All(str, vol.Length(min=1, max=40)),
+    vol.Optional("en", default=""): vol.All(str, vol.Length(max=40)),
+    vol.Optional("uz", default=""): vol.All(str, vol.Length(max=40)),
+}, extra=vol.REMOVE_EXTRA)
+
+
+def _custom_card_action(value):
+    """Action — диктует семантику нажатия на карточку.
+
+    {"type":"service","service":"script.morning_routine","data":{...}}
+    {"type":"entity","entity_id":"light.living_main"}
+    {"type":"toggle","entity_id":"switch.kitchen_lights"}
+    {"type":"dashboard","url":"/lovelace/0"}
+    """
+    if not isinstance(value, dict):
+        raise vol.Invalid("Action должен быть объектом")
+    t = value.get("type")
+    if t not in CUSTOM_CARD_ACTION_TYPES:
+        raise vol.Invalid(f"Неизвестный type='{t}', допустимы: {CUSTOM_CARD_ACTION_TYPES}")
+    out: dict = {"type": t}
+    if t == "service":
+        svc = value.get("service") or ""
+        if not isinstance(svc, str) or "." not in svc or len(svc) > 80:
+            raise vol.Invalid("service должен быть строкой формата 'domain.service'")
+        out["service"] = svc
+        data = value.get("data")
+        if data is not None:
+            if not isinstance(data, dict):
+                raise vol.Invalid("data сервиса должен быть объектом")
+            out["data"] = data
+    elif t in ("entity", "toggle"):
+        eid = value.get("entity_id") or ""
+        if not isinstance(eid, str) or "." not in eid:
+            raise vol.Invalid("entity_id должен быть строкой 'domain.name'")
+        out["entity_id"] = eid
+    elif t == "dashboard":
+        url = value.get("url") or ""
+        if not isinstance(url, str) or not url:
+            raise vol.Invalid("url не может быть пустым")
+        out["url"] = url
+    return out
+
+
+CUSTOM_CARD_SCHEMA = vol.Schema({
+    vol.Required("id"):     vol.All(str, vol.Length(min=1, max=64)),
+    vol.Required("label"):  CUSTOM_CARD_LABEL_SCHEMA,
+    vol.Required("icon"):   vol.All(str, vol.Length(min=1, max=64)),
+    vol.Required("action"): _custom_card_action,
+}, extra=vol.REMOVE_EXTRA)
+
+
+def _custom_cards_value(value):
+    """Список карточек: уникальные id, max=CUSTOM_CARD_MAX."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise vol.Invalid("custom_cards должен быть списком")
+    if len(value) > CUSTOM_CARD_MAX:
+        raise vol.Invalid(f"Слишком много карточек (>{CUSTOM_CARD_MAX})")
+    out = []
+    seen_ids = set()
+    for item in value:
+        try:
+            card = CUSTOM_CARD_SCHEMA(item)
+        except vol.Invalid:
+            # Пропускаем битую карточку — другие пусть сохранятся.
+            continue
+        if card["id"] in seen_ids:
+            continue
+        seen_ids.add(card["id"])
+        out.append(card)
+    return out
 
 
 # ---------- Карта переименований bind-ключей (для миграции старых storage) ----------
@@ -177,6 +252,8 @@ CONFIG_SCHEMA = vol.Schema({
         ENTITIES_SCHEMA,
     vol.Optional("area_id",        default=None):
         vol.Any(None, str),
+    vol.Optional("custom_cards",   default=list):
+        _custom_cards_value,
     # Внутреннее, проставляется автоматически
     vol.Optional("_updated"):      str,
 }, extra=vol.REMOVE_EXTRA)  # лишние ключи дропаются — защита от старых полей

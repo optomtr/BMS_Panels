@@ -50,6 +50,10 @@ export const SCREEN_KEYS = ['light','curtain','music','ac','heating','floor','co
 const SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600];
 const LANGUAGES = ['English', 'Русский'];
 
+// ---- Custom Cards (mirror of const.py) ----
+export const CUSTOM_CARD_ACTION_TYPES = ['service', 'entity', 'toggle', 'dashboard'];
+export const CUSTOM_CARD_MAX = 16;
+
 function makeIssue(id, severity, message, fixHint, anchor) {
   return { id, severity, message, fix_hint: fixHint || '', anchor: anchor || { type: 'global' } };
 }
@@ -372,12 +376,112 @@ export function validate(cfg, panelId, allPanels, hassStates) {
   };
   for (const [screen, dom] of Object.entries(screenDomainMap)) {
     if (screens[screen]?.enabled && !domainHas[dom]) {
-      out.push(makeIssue(`V60_${screen}`, SEV_WARN,
+      out.push(makeIssue(`V60d_${screen}`, SEV_WARN,
         `В Home Assistant нет ни одного устройства ${dom}.*, а экран «${screen}» включён.`,
         'Выключите экран или сначала установите интеграцию-источник.',
         { type: 'screen_warning', key: screen }));
     }
   }
+
+  // ---- G. Custom Cards ----
+  const cards = Array.isArray(cfg.custom_cards) ? cfg.custom_cards : [];
+
+  if (cards.length > CUSTOM_CARD_MAX) {
+    out.push(makeIssue('V60', SEV_ERROR,
+      `Слишком много кастомных карточек: ${cards.length} (максимум ${CUSTOM_CARD_MAX}).`,
+      'Удалите лишние карточки.',
+      { type: 'card', key: 'custom_cards' }));
+  }
+
+  const seenCardIds = new Set();
+  cards.forEach((card, idx) => {
+    if (!card || typeof card !== 'object') {
+      out.push(makeIssue(`V61_${idx}`, SEV_ERROR,
+        `Кастомная карточка #${idx+1}: некорректный формат.`,
+        'Удалите её и создайте заново.',
+        { type: 'custom_card', index: idx }));
+      return;
+    }
+    const cid = card.id;
+    if (!cid || typeof cid !== 'string') {
+      out.push(makeIssue(`V61_${idx}`, SEV_ERROR,
+        `Кастомная карточка #${idx+1}: нет id.`,
+        'Удалите её и создайте заново.',
+        { type: 'custom_card', index: idx }));
+      return;
+    }
+    if (seenCardIds.has(cid)) {
+      out.push(makeIssue(`V62_${cid}`, SEV_ERROR,
+        `Дубликат id у кастомной карточки: «${cid}».`,
+        'Удалите дубликат.',
+        { type: 'custom_card', card_id: cid }));
+    }
+    seenCardIds.add(cid);
+
+    const label = (card.label && typeof card.label === 'object') ? card.label : {};
+    const ruLabel = (label.ru || '').trim();
+    if (!ruLabel) {
+      out.push(makeIssue(`V63_${cid}`, SEV_ERROR,
+        `У кастомной карточки «${cid}» не задано русское название.`,
+        'Заполните поле «Название (RU)».',
+        { type: 'custom_card', card_id: cid }));
+    }
+
+    const icon = card.icon || '';
+    if (typeof icon !== 'string' || !icon.includes(':')) {
+      out.push(makeIssue(`V64_${cid}`, SEV_WARN,
+        `У карточки «${cid}» странная иконка («${icon}»).`,
+        'Иконка должна быть mdi:… (например mdi:weather-sunny).',
+        { type: 'custom_card', card_id: cid }));
+    }
+
+    const action = card.action || {};
+    if (!action || typeof action !== 'object') {
+      out.push(makeIssue(`V65_${cid}`, SEV_ERROR,
+        `У карточки «${cid}» нет действия.`,
+        'Выберите тип действия.',
+        { type: 'custom_card', card_id: cid }));
+      return;
+    }
+    const atype = action.type;
+    if (!CUSTOM_CARD_ACTION_TYPES.includes(atype)) {
+      out.push(makeIssue(`V65_${cid}`, SEV_ERROR,
+        `У карточки «${cid}» неизвестный тип действия: «${atype}».`,
+        `Допустимы: ${CUSTOM_CARD_ACTION_TYPES.join(', ')}.`,
+        { type: 'custom_card', card_id: cid }));
+      return;
+    }
+
+    if (atype === 'service') {
+      const svc = action.service || '';
+      if (!svc.includes('.')) {
+        out.push(makeIssue(`V66_${cid}`, SEV_ERROR,
+          `У карточки «${ruLabel || cid}» сервис задан в неверном формате.`,
+          'Формат: domain.service (например script.morning_routine).',
+          { type: 'custom_card', card_id: cid }));
+      }
+    } else if (atype === 'entity' || atype === 'toggle') {
+      const eid = action.entity_id || '';
+      if (!eid.includes('.')) {
+        out.push(makeIssue(`V66_${cid}`, SEV_ERROR,
+          `У карточки «${ruLabel || cid}» не выбрано устройство.`,
+          'Выберите entity из списка.',
+          { type: 'custom_card', card_id: cid }));
+      } else if (hassStates && !hassStates[eid]) {
+        out.push(makeIssue(`V67_${cid}`, SEV_ERROR,
+          `У карточки «${ruLabel || cid}» entity «${eid}» больше не существует.`,
+          'Возможно удалили или переименовали. Выберите другой.',
+          { type: 'custom_card', card_id: cid }));
+      }
+    } else if (atype === 'dashboard') {
+      if (!action.url) {
+        out.push(makeIssue(`V66_${cid}`, SEV_ERROR,
+          `У карточки «${ruLabel || cid}» не указан URL.`,
+          'Введите путь дашборда (например /lovelace/0).',
+          { type: 'custom_card', card_id: cid }));
+      }
+    }
+  });
 
   return out;
 }
