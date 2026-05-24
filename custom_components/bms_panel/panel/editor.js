@@ -596,6 +596,8 @@ class BMSPanelEditor extends HTMLElement {
     this._dirty = false;
     this._bannerExpanded = false;
     this._toastTimer = null;
+    this._storedPanels = [];
+    this._loadingPanels = false;
   }
 
   set hass(hass) {
@@ -603,6 +605,7 @@ class BMSPanelEditor extends HTMLElement {
     this._hass = hass;
     if (first) {
       this._renderShell();
+      this._loadPanels();
     }
     this._refresh();
   }
@@ -634,6 +637,25 @@ class BMSPanelEditor extends HTMLElement {
   // ---------- Получение всех панелей из hass.states ----------
 
   _allPanels() {
+    if (!this._hass) return this._storedPanels || [];
+    const byId = new Map((this._storedPanels || []).map(p => [p.panel_id, p]));
+    for (const [id, s] of Object.entries(this._hass.states)) {
+      if (!id.startsWith('sensor.bms_panel_')) continue;
+      const panelId = s.attributes.panel_id || id.replace(/^sensor\.bms_panel_/, '');
+      byId.set(panelId, {
+        entity_id: id,
+        panel_id: panelId,
+        panel_name: s.attributes.panel_name || s.attributes.friendly_name || id,
+        config: this._extractConfig(s.attributes),
+        last_updated: s.last_updated,
+        state: s.state,
+      });
+    }
+    return [...byId.values()]
+      .sort((a, b) => (a.panel_name || '').localeCompare(b.panel_name || ''));
+  }
+
+  _statePanels() {
     if (!this._hass) return [];
     return Object.entries(this._hass.states)
       .filter(([id]) => id.startsWith('sensor.bms_panel_'))
@@ -646,6 +668,24 @@ class BMSPanelEditor extends HTMLElement {
         state: s.state,
       }))
       .sort((a, b) => (a.panel_name || '').localeCompare(b.panel_name || ''));
+  }
+
+  async _loadPanels() {
+    if (!this._hass?.callWS || this._loadingPanels) return;
+    this._loadingPanels = true;
+    try {
+      const panels = await this._hass.callWS({ type: 'bms_panel/list_panels' });
+      this._storedPanels = (panels || []).map(p => ({
+        ...p,
+        config: this._extractConfig(p.config || {}),
+      }));
+      this._refresh();
+    } catch (err) {
+      // Старые версии integration без WS API всё ещё работают через hass.states.
+      console.warn('BMS Panels: storage list unavailable', err);
+    } finally {
+      this._loadingPanels = false;
+    }
   }
 
   _extractConfig(attrs) {
@@ -1654,7 +1694,8 @@ class BMSPanelEditor extends HTMLElement {
               'success',
               { duration: 0 },
             );
-            setTimeout(() => {
+            setTimeout(async () => {
+              await this._loadPanels();
               this._selectCreatedPanel(name, previewId);
               this._refresh();
             }, 400);
@@ -1710,7 +1751,8 @@ class BMSPanelEditor extends HTMLElement {
           .then(() => {
             close();
             this._toast(`Панель скопирована.`, 'success');
-            setTimeout(() => {
+            setTimeout(async () => {
+              await this._loadPanels();
               this._selectCreatedPanel(name, previewId);
               this._refresh();
             }, 400);

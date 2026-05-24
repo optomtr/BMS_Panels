@@ -17,6 +17,7 @@ import re
 
 import voluptuous as vol
 
+from homeassistant.components import websocket_api
 from homeassistant.components import panel_custom
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -194,8 +195,48 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     # ---- Сервисы ----
     await _async_register_services(hass)
+    _async_register_websocket_api(hass)
 
     return True
+
+
+def _panel_payload(hass: HomeAssistant, panel_id: str) -> dict:
+    """Единый payload для UI: storage-first, sensor state как дополнительный слой."""
+    meta = hass.data[DOMAIN].get("meta", {}).get(panel_id, {})
+    cfg = copy.deepcopy(
+        hass.data[DOMAIN].get("configs", {}).get(panel_id, DEFAULT_CONFIG)
+    )
+    state = hass.states.get(f"sensor.bms_panel_{panel_id}")
+    return {
+        "entity_id": f"sensor.bms_panel_{panel_id}",
+        "panel_id": panel_id,
+        "panel_name": meta.get("panel_name", panel_id),
+        "config": cfg,
+        "last_updated": state.last_updated.isoformat() if state else None,
+        "state": state.state if state else "configured",
+    }
+
+
+def _async_register_websocket_api(hass: HomeAssistant) -> None:
+    """WebSocket API для редактора. Не зависит от наличия sensor в hass.states."""
+    if hass.data[DOMAIN].get("websocket_registered"):
+        return
+
+    @websocket_api.websocket_command({
+        vol.Required("type"): "bms_panel/list_panels",
+    })
+    @websocket_api.async_response
+    async def websocket_list_panels(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        panel_ids = sorted(_taken_panel_ids(hass))
+        panels = [_panel_payload(hass, panel_id) for panel_id in panel_ids]
+        connection.send_result(msg["id"], panels)
+
+    websocket_api.async_register_command(hass, websocket_list_panels)
+    hass.data[DOMAIN]["websocket_registered"] = True
 
 
 async def _async_register_services(hass: HomeAssistant) -> None:
