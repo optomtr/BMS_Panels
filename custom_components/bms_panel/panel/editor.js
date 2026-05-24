@@ -563,6 +563,329 @@ input[type=range] { width: 100%; }
   .field-row label { width: auto; }
   .home-nav-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ============ LIVE PREVIEW PANE ============ */
+.preview-pane {
+  width: 520px;
+  flex-shrink: 0;
+  background: var(--card-background-color);
+  border-left: 1px solid var(--divider-color);
+  padding: 16px;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.preview-pane.collapsed { width: 56px; padding: 16px 0; align-items: center; }
+.preview-pane.collapsed .preview-body,
+.preview-pane.collapsed .preview-head-title,
+.preview-pane.collapsed .preview-screen-picker { display: none; }
+.preview-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--secondary-text-color);
+}
+.preview-head .preview-head-title { flex: 1; }
+.preview-head .icon-btn { padding: 4px; border-radius: 6px; cursor: pointer; }
+.preview-head .icon-btn:hover { background: var(--secondary-background-color); }
+.preview-screen-picker {
+  display: flex; gap: 4px; flex-wrap: wrap; padding: 4px 0;
+}
+.preview-screen-picker .ps-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; font-size: 11px;
+  background: var(--secondary-background-color);
+  border: 1px solid var(--divider-color);
+  border-radius: 12px; cursor: pointer;
+  color: var(--secondary-text-color);
+}
+.preview-screen-picker .ps-btn ha-icon { --mdc-icon-size: 14px; pointer-events: none; }
+.preview-screen-picker .ps-btn span { pointer-events: none; }
+.preview-screen-picker .ps-btn.active {
+  background: var(--primary-color);
+  color: white; border-color: var(--primary-color);
+}
+.preview-screen-picker .ps-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* The 480x480 panel mockup */
+.pv-panel {
+  width: 480px; height: 480px;
+  position: relative; overflow: hidden;
+  isolation: isolate;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2a2620 0%, #1A1612 50%, #0a0808 100%);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.pv-panel.scaled { transform: scale(0.95); transform-origin: top center; }
+.pv-panel * { box-sizing: border-box; }
+.pv-panel::before {
+  content: ''; position: absolute; inset: -30px;
+  background: radial-gradient(circle at 30% 20%, rgba(201,154,85,0.18), transparent 55%),
+              radial-gradient(circle at 80% 90%, rgba(60,40,30,0.4), transparent 60%);
+  z-index: 0;
+}
+.pv-panel.home-bg::before {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.7) 100%),
+    radial-gradient(ellipse at 50% 30%, rgba(201,154,85,0.25), transparent 60%),
+    linear-gradient(135deg, #3a2a1a 0%, #1a1411 50%, #0a0807 100%);
+}
+
+/* Header bar (sub-screens) */
+.pv-header {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 64px; padding: 0 20px; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pv-header-btn {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+}
+.pv-header-btn:hover { background: rgba(255,255,255,0.12); }
+.pv-header-btn:active { transform: scale(0.9); }
+.pv-header-title { font-size: 22px; font-weight: 500; }
+.pv-header-spacer { width: 44px; }
+.pv-divider {
+  position: absolute; top: 64px; left: 0; right: 0;
+  height: 1px; background: rgba(255,255,255,0.12); z-index: 4;
+}
+
+.pv-content {
+  position: absolute; top: 64px; left: 0; right: 0; bottom: 0;
+  padding: 16px 20px; z-index: 2;
+  overflow-y: auto;
+}
+
+/* Home screen */
+.pv-home-climate {
+  position: absolute; top: 28px; left: 0; right: 0;
+  display: flex; justify-content: space-around;
+  z-index: 4;
+}
+.pv-home-climate .cli {
+  display: flex; flex-direction: column; align-items: center;
+}
+.pv-home-climate .cli-icon { font-size: 24px; opacity: 0.85; }
+.pv-home-climate .cli-val {
+  font-size: 36px; font-weight: 200;
+  font-variant-numeric: tabular-nums;
+}
+.pv-home-climate .cli-val .unit { font-size: 18px; font-weight: 300; margin-left: 2px; }
+.pv-home-climate .cli-lbl { font-size: 11px; opacity: 0.6; letter-spacing: 1px; }
+
+.pv-home-clock {
+  position: absolute; top: 180px; left: 0; right: 0; text-align: center; z-index: 3;
+}
+.pv-home-clock .t {
+  font-size: 80px; font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+}
+.pv-home-clock .d {
+  font-size: 13px; opacity: 0.65;
+  margin-top: 4px; letter-spacing: 0.5px;
+}
+.pv-home-comfort {
+  position: absolute; top: 295px; left: 0; right: 0;
+  text-align: center; z-index: 3;
+  font-size: 12px; opacity: 0.75; padding: 0 30px;
+}
+.pv-home-nav {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 92px;
+  display: flex; align-items: center; justify-content: space-around;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.65));
+  z-index: 4;
+}
+.pv-home-nav .nv {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; padding: 6px 8px; border-radius: 8px;
+  min-width: 60px;
+}
+.pv-home-nav .nv:hover { background: rgba(255,255,255,0.06); }
+.pv-home-nav .nv:active { transform: scale(0.92); opacity: 0.65; }
+.pv-home-nav .nv ha-icon { --mdc-icon-size: 30px; color: rgba(255,255,255,0.95); pointer-events: none; }
+.pv-home-nav .nv .lbl { font-size: 11px; opacity: 0.85; letter-spacing: 0.3px; pointer-events: none; }
+.pv-menu-grid .tl ha-icon, .pv-menu-grid .tl .lb { pointer-events: none; }
+.pv-vent-grid .sp, .pv-vent-grid .sp * { }
+.pv-vent-grid .sp .pct { pointer-events: none; }
+.pv-cur-presets .pst { user-select: none; }
+.pv-climate-list .clm .scn { user-select: none; }
+.pv-light-row .pv-toggle .thumb { pointer-events: none; }
+.pv-light-row .pv-slider .fill, .pv-light-row .pv-slider .knob { pointer-events: none; }
+.pv-header-btn ha-icon { pointer-events: none; }
+
+/* Light screen */
+.pv-light-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.pv-light-row .lr-icon { --mdc-icon-size: 24px; color: #C99A55; }
+.pv-light-row.off .lr-icon { color: rgba(255,255,255,0.4); }
+.pv-light-row .lr-name { flex: 1; font-size: 15px; }
+.pv-light-row .lr-name .lr-state { font-size: 11px; opacity: 0.55; display: block; }
+.pv-light-row .pv-toggle {
+  width: 44px; height: 26px; border-radius: 13px;
+  background: rgba(120,120,128,0.4); position: relative; cursor: pointer;
+  transition: background 0.15s;
+}
+.pv-light-row .pv-toggle.on { background: #C99A55; }
+.pv-light-row .pv-toggle .thumb {
+  width: 22px; height: 22px; background: #fff; border-radius: 50%;
+  position: absolute; top: 2px; left: 2px;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.pv-light-row .pv-toggle.on .thumb { transform: translateX(18px); }
+.pv-light-row .pv-slider {
+  width: 110px; height: 5px; background: rgba(255,255,255,0.18);
+  border-radius: 3px; position: relative; cursor: pointer;
+}
+.pv-light-row .pv-slider .fill {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  background: #C99A55; border-radius: 3px;
+}
+.pv-light-row .pv-slider .knob {
+  width: 14px; height: 14px; background: #fff; border-radius: 50%;
+  position: absolute; top: -4.5px; transform: translateX(-7px);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Curtain screen */
+.pv-cur-block { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.pv-cur-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.pv-cur-head ha-icon { --mdc-icon-size: 22px; color: rgba(255,255,255,0.85); }
+.pv-cur-head .nm { flex: 1; font-size: 15px; }
+.pv-cur-head .pos { font-size: 12px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.pv-cur-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.pv-cur-presets .pst {
+  flex: 1; min-width: 50px; text-align: center;
+  padding: 8px 4px; font-size: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px; cursor: pointer;
+}
+.pv-cur-presets .pst:hover { background: rgba(255,255,255,0.12); }
+.pv-cur-presets .pst:active { transform: scale(0.95); }
+.pv-cur-presets .pst.active { background: rgba(201,154,85,0.25); border-color: #C99A55; }
+
+/* Climate (ac/heating/floor/convector) */
+.pv-climate-head {
+  text-align: center; margin-bottom: 14px;
+}
+.pv-climate-head .cur-t {
+  font-size: 56px; font-weight: 200;
+  font-variant-numeric: tabular-nums;
+}
+.pv-climate-head .cur-t .unit { font-size: 22px; opacity: 0.7; margin-left: 4px; }
+.pv-climate-head .lbl { font-size: 11px; opacity: 0.55; letter-spacing: 1px; }
+.pv-climate-list { display: flex; flex-direction: column; gap: 6px; }
+.pv-climate-list .clm {
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px;
+}
+.pv-climate-list .clm.off { opacity: 0.5; }
+.pv-climate-list .clm .nm { flex: 1; }
+.pv-climate-list .clm .scenes { display: flex; gap: 4px; }
+.pv-climate-list .clm .scn {
+  padding: 4px 8px; font-size: 11px; border-radius: 12px;
+  background: rgba(255,255,255,0.07); cursor: pointer;
+  border: 1px solid transparent;
+}
+.pv-climate-list .clm .scn:hover { background: rgba(255,255,255,0.14); }
+.pv-climate-list .clm .scn.active { background: rgba(201,154,85,0.25); border-color: #C99A55; color: #C99A55; }
+.pv-climate-list .clm .target { font-size: 13px; opacity: 0.75; font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; }
+
+/* Ventilation */
+.pv-vent-co2 {
+  text-align: center; margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+.pv-vent-co2 .v { font-size: 42px; font-weight: 200; font-variant-numeric: tabular-nums; }
+.pv-vent-co2 .v .unit { font-size: 14px; opacity: 0.7; margin-left: 4px; }
+.pv-vent-co2 .lbl { font-size: 11px; opacity: 0.55; letter-spacing: 1px; margin-top: 2px; }
+.pv-vent-co2.bad { background: rgba(244,67,54,0.15); }
+.pv-vent-co2.mid { background: rgba(255,152,0,0.15); }
+.pv-vent-co2.good { background: rgba(76,175,80,0.15); }
+.pv-vent-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.pv-vent-grid .sp {
+  padding: 14px 8px; text-align: center;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 10px; cursor: pointer;
+  font-size: 13px;
+}
+.pv-vent-grid .sp.active { background: rgba(201,154,85,0.2); border-color: #C99A55; color: #C99A55; }
+.pv-vent-grid .sp:hover { background: rgba(255,255,255,0.10); }
+.pv-vent-grid .sp .pct { font-size: 22px; font-weight: 300; display: block; margin-top: 4px; }
+
+/* Menu */
+.pv-menu-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 4px;
+}
+.pv-menu-grid .tl {
+  aspect-ratio: 1; border-radius: 12px;
+  background: rgba(20,20,22,0.55);
+  border: 1px solid rgba(255,255,255,0.08);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; gap: 6px;
+}
+.pv-menu-grid .tl:hover { background: rgba(40,40,44,0.75); }
+.pv-menu-grid .tl:active { transform: scale(0.95); }
+.pv-menu-grid .tl ha-icon { --mdc-icon-size: 42px; color: #fff; }
+.pv-menu-grid .tl .lb { font-size: 12px; opacity: 0.85; }
+.pv-menu-grid .tl.disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Empty hint when binding missing */
+.pv-empty {
+  text-align: center; padding: 40px 16px;
+  color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.5;
+}
+.pv-empty ha-icon { --mdc-icon-size: 48px; opacity: 0.4; display: block; margin: 0 auto 12px; }
+.pv-empty a { color: #C99A55; cursor: pointer; text-decoration: underline; }
+
+.pv-pending { opacity: 0.65; pointer-events: none; }
+
+@media (max-width: 1280px) {
+  .preview-pane { width: 56px; padding: 16px 0; align-items: center; }
+  .preview-pane .preview-body,
+  .preview-pane .preview-head-title,
+  .preview-pane .preview-screen-picker { display: none; }
+  .preview-pane.expanded {
+    width: 520px; padding: 16px; align-items: stretch;
+  }
+  .preview-pane.expanded .preview-body,
+  .preview-pane.expanded .preview-head-title,
+  .preview-pane.expanded .preview-screen-picker { display: revert; }
+  .preview-pane.expanded .preview-screen-picker { display: flex; }
+}
+@media (max-width: 900px) {
+  .preview-pane { display: none; }
+  .preview-pane.modal {
+    display: flex; position: fixed; inset: 0; z-index: 2000;
+    width: 100vw; height: 100vh; background: rgba(0,0,0,0.85);
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+}
 `;
 
 // ---------- Утилиты ----------
@@ -597,6 +920,13 @@ class BMSPanelEditor extends HTMLElement {
     this._toastTimer = null;
     this._storedPanels = [];
     this._loadingPanels = false;
+
+    // ---- Live Preview state ----
+    this._previewScreen = 'home';          // home/light/curtain/ac/heating/floor/convector/ventilation/menu
+    this._previewExpanded = true;          // mid-width — collapsed by default until user opens
+    this._previewModalOpen = false;        // narrow screens
+    this._previewPending = new Map();      // entity_id → { state, expires_at } optimistic UI
+    this._previewClockTimer = null;
   }
 
   set hass(hass) {
@@ -626,6 +956,7 @@ class BMSPanelEditor extends HTMLElement {
       <div class="layout">
         <aside class="sidebar" id="sidebar"></aside>
         <main class="content" id="content"></main>
+        <aside class="preview-pane ${this._previewExpanded ? 'expanded' : 'collapsed'}" id="preview-pane"></aside>
       </div>
       <div id="modal-root"></div>
       <div id="toast-root"></div>
@@ -758,6 +1089,11 @@ class BMSPanelEditor extends HTMLElement {
     this._renderSidebar();
     this._renderContent();
     this._renderTopBar();
+    this._renderPreviewPane();
+  }
+
+  _refreshPreviewOnly() {
+    this._renderPreviewPane();
   }
 
   _renderTopBar() {
@@ -905,7 +1241,14 @@ class BMSPanelEditor extends HTMLElement {
     if (this._activeTab === 'devices')  tabContentHtml = this._renderDevices(panel, issues);
 
     content.innerHTML = `
-      <div class="tabs">${tabsHtml}</div>
+      <div class="tabs">
+        ${tabsHtml}
+        <div style="flex:1;"></div>
+        <div class="tab" id="btn-toggle-preview" title="Показать / скрыть превью">
+          <ha-icon icon="mdi:cellphone-screenshot"></ha-icon>
+          <span>Превью</span>
+        </div>
+      </div>
       <div class="tab-content">${tabContentHtml}</div>
       <div class="bottom-bar">
         <div class="left">
@@ -928,13 +1271,18 @@ class BMSPanelEditor extends HTMLElement {
     `;
 
     // ---- Tab navigation ----
-    content.querySelectorAll('.tab').forEach(t => {
+    content.querySelectorAll('.tab[data-tab]').forEach(t => {
       t.onclick = () => {
         this._activeTab = t.dataset.tab;
         this._renderContent();
         this._renderTopBar();
+        this._renderPreviewPane();
       };
     });
+
+    // ---- Preview toggle (header button) ----
+    const btnTogglePreview = content.querySelector('#btn-toggle-preview');
+    if (btnTogglePreview) btnTogglePreview.onclick = () => this._togglePreview();
 
     // ---- Bottom bar actions ----
     content.querySelector('#btn-save').onclick = () => this._save();
@@ -2268,10 +2616,571 @@ class BMSPanelEditor extends HTMLElement {
         this._toast('Ошибка сохранения: ' + (err.message || err), 'error');
       });
   }
+
+  // ===========================================================================
+  // ============== LIVE PREVIEW PANE (v2.1.0) ================================
+  // ===========================================================================
+  //
+  // Renders 480×480 mock of the APK panel showing the configured screens with
+  // real entity state from `this._hass.states`. Taps call `hass.callService(...)`
+  // → state changes flow back through `set hass` → next refresh shows new state.
+  //
+  // Screens covered: home / light / curtain / ac / heating / floor / convector
+  //                  / ventilation / menu. (music skipped — disabled in BMS).
+  //
+  // Optimistic UI: when user taps a control we put entity_id into
+  // `_previewPending` with the expected value + 3s TTL. Next render uses the
+  // pending value until real state catches up or TTL expires.
+
+  _togglePreview() {
+    this._previewExpanded = !this._previewExpanded;
+    const pane = this.shadowRoot.getElementById('preview-pane');
+    if (pane) {
+      pane.classList.toggle('expanded', this._previewExpanded);
+      pane.classList.toggle('collapsed', !this._previewExpanded);
+    }
+    this._renderPreviewPane();
+  }
+
+  _renderPreviewPane() {
+    const pane = this.shadowRoot.getElementById('preview-pane');
+    if (!pane) return;
+    const panel = this._activePanel();
+    if (!panel) {
+      pane.innerHTML = `
+        <div class="preview-head">
+          <ha-icon icon="mdi:cellphone-screenshot"></ha-icon>
+          <div class="preview-head-title">Превью</div>
+        </div>
+        <div class="preview-body" style="opacity:0.5; text-align:center; padding:20px;">
+          Создайте панель, чтобы увидеть превью.
+        </div>`;
+      return;
+    }
+
+    if (!this._previewExpanded) {
+      // Collapsed sidebar — vertical icon stack only.
+      pane.innerHTML = `
+        <div class="icon-btn" title="Развернуть превью" id="btn-preview-expand"
+             style="padding:8px; cursor:pointer;">
+          <ha-icon icon="mdi:cellphone-screenshot" style="--mdc-icon-size:24px;"></ha-icon>
+        </div>`;
+      const btn = pane.querySelector('#btn-preview-expand');
+      if (btn) btn.onclick = () => this._togglePreview();
+      return;
+    }
+
+    const cfg = this._workingConfig(panel);
+    const enabled = this._enabledScreens(cfg);
+    // If selected screen is now disabled, snap to home.
+    if (this._previewScreen !== 'home' && this._previewScreen !== 'menu' &&
+        !enabled.includes(this._previewScreen)) {
+      this._previewScreen = 'home';
+    }
+
+    pane.innerHTML = `
+      <div class="preview-head">
+        <ha-icon icon="mdi:cellphone-screenshot" style="color: var(--primary-color);"></ha-icon>
+        <div class="preview-head-title">
+          Превью · ${esc(panel.panel_name)}
+          <div style="font-size:10px; opacity:0.6; text-transform:none; letter-spacing:0; margin-top:2px;">
+            Тапы реально отправляют команды в HA
+          </div>
+        </div>
+        <div class="icon-btn" id="btn-preview-collapse" title="Свернуть">
+          <ha-icon icon="mdi:chevron-right"></ha-icon>
+        </div>
+      </div>
+      <div class="preview-screen-picker">
+        ${this._renderPreviewScreenPicker(cfg, enabled)}
+      </div>
+      <div class="preview-body">
+        ${this._renderPreviewScreen(panel, cfg)}
+      </div>
+    `;
+
+    pane.querySelector('#btn-preview-collapse').onclick = () => this._togglePreview();
+    this._wirePreviewEvents(panel, cfg);
+    this._ensurePreviewClock();
+  }
+
+  _renderPreviewScreenPicker(cfg, enabled) {
+    const items = [
+      { key: 'home', icon: 'mdi:home-outline', label: 'Дом', always: true },
+      ...['light','curtain','ac','heating','floor','convector','ventilation'].map(k => ({
+        key: k, icon: SCREEN_META[k].icon, label: SCREEN_META[k].ru,
+      })),
+      { key: 'menu', icon: 'mdi:view-grid', label: 'Меню', always: true },
+    ];
+    return items.map(it => {
+      const isOn = it.always || enabled.includes(it.key);
+      const active = this._previewScreen === it.key;
+      return `
+        <div class="ps-btn ${active?'active':''} ${!isOn?'disabled':''}" data-pv-screen="${it.key}">
+          <ha-icon icon="${it.icon}"></ha-icon><span>${it.label}</span>
+        </div>`;
+    }).join('');
+  }
+
+  _enabledScreens(cfg) {
+    return Object.entries(cfg.screens || {})
+      .filter(([_, v]) => v && v.enabled)
+      .map(([k]) => k);
+  }
+
+  _renderPreviewScreen(panel, cfg) {
+    const sc = this._previewScreen;
+    if (sc === 'home') return this._pvHome(cfg);
+    if (sc === 'menu') return this._pvMenu(cfg);
+    if (sc === 'light') return this._pvLight(cfg);
+    if (sc === 'curtain') return this._pvCurtain(cfg);
+    if (sc === 'ventilation') return this._pvVentilation(cfg);
+    if (['ac','heating','floor','convector'].includes(sc)) return this._pvClimate(cfg, sc);
+    return this._pvEmpty('Этот экран пока без превью');
+  }
+
+  _pvWrap(inner, opts = {}) {
+    const cls = opts.home ? 'home-bg' : '';
+    return `<div class="pv-panel ${cls}">${inner}</div>`;
+  }
+
+  _pvHeader(title) {
+    return `
+      <div class="pv-header">
+        <div class="pv-header-btn" data-pv-action="nav-home" title="На главный">
+          <ha-icon icon="mdi:chevron-left" style="--mdc-icon-size:28px; color:#fff;"></ha-icon>
+        </div>
+        <div class="pv-header-title">${esc(title)}</div>
+        <div class="pv-header-spacer"></div>
+      </div>
+      <div class="pv-divider"></div>`;
+  }
+
+  _pvEmpty(msg, hint = '') {
+    return `
+      <div class="pv-empty">
+        <ha-icon icon="mdi:link-variant-off"></ha-icon>
+        <div>${esc(msg)}</div>
+        ${hint ? `<div style="margin-top:8px; font-size:11px; opacity:0.7;">${esc(hint)}</div>` : ''}
+      </div>`;
+  }
+
+  // ------ entity state with optimistic overrides ------
+
+  _pvEntState(eid) {
+    if (!this._hass || !this._hass.states[eid]) return null;
+    const s = this._hass.states[eid];
+    const pending = this._previewPending.get(eid);
+    if (pending && Date.now() < pending.expires_at) {
+      return { ...s, state: pending.state ?? s.state, attributes: { ...s.attributes, ...pending.attrs } };
+    }
+    if (pending) this._previewPending.delete(eid);
+    return s;
+  }
+
+  _pvSetPending(eid, state, attrs = {}) {
+    this._previewPending.set(eid, { state, attrs, expires_at: Date.now() + 3000 });
+    // Trigger re-render so user sees instant feedback
+    setTimeout(() => this._renderPreviewPane(), 30);
+  }
+
+  // ============ HOME ============
+  _pvHome(cfg) {
+    const tempEid = cfg.entities?.temp_sensor;
+    const humEid = cfg.entities?.humidity_sensor;
+    const tempState = tempEid ? this._pvEntState(tempEid) : null;
+    const humState = humEid ? this._pvEntState(humEid) : null;
+    const tempVal = tempState && tempState.state !== 'unavailable' && tempState.state !== 'unknown'
+      ? Math.round(parseFloat(tempState.state)) : '–';
+    const humVal = humState && humState.state !== 'unavailable' && humState.state !== 'unknown'
+      ? Math.round(parseFloat(humState.state)) : '–';
+    const tempUnit = tempState?.attributes?.unit_of_measurement || '°C';
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const weekdays = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+    const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    const dateStr = `${weekdays[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
+
+    // Comfort
+    let comfortMsg = 'Все системы в норме';
+    if (tempVal !== '–') {
+      if (tempVal < 19) comfortMsg = 'Дома прохладно — может включить отопление?';
+      else if (tempVal > 27) comfortMsg = 'Дома жарко — кондиционер?';
+      else comfortMsg = 'Дома тепло и комфортно';
+    }
+
+    const nav = (cfg.home_nav || []).slice(0, 5);
+
+    const navHtml = nav.map(key => {
+      if (!key) return `<div class="nv" style="visibility:hidden;"></div>`;
+      const m = SCREEN_META[key];
+      const isMenu = key === 'menu';
+      const icon = isMenu ? 'mdi:view-grid' : (m?.icon || 'mdi:help-circle-outline');
+      const lbl = isMenu ? 'Меню' : (m?.ru || key);
+      return `
+        <div class="nv" data-pv-action="nav-to" data-target="${esc(key)}">
+          <ha-icon icon="${icon}"></ha-icon>
+          <div class="lbl">${esc(lbl)}</div>
+        </div>`;
+    }).join('');
+
+    return this._pvWrap(`
+      <div class="pv-home-climate">
+        <div class="cli">
+          <ha-icon class="cli-icon" icon="mdi:thermometer" style="--mdc-icon-size:24px; color:#fff;"></ha-icon>
+          <div class="cli-val">${tempVal}<span class="unit">${esc(tempUnit)}</span></div>
+          <div class="cli-lbl">ТЕМПЕРАТУРА</div>
+        </div>
+        <div class="cli">
+          <ha-icon class="cli-icon" icon="mdi:water-percent" style="--mdc-icon-size:24px; color:#fff;"></ha-icon>
+          <div class="cli-val">${humVal}<span class="unit">%</span></div>
+          <div class="cli-lbl">ВЛАЖНОСТЬ</div>
+        </div>
+      </div>
+      <div class="pv-home-clock">
+        <div class="t" data-pv-clock>${hh}:${mm}</div>
+        <div class="d">${dateStr}</div>
+      </div>
+      <div class="pv-home-comfort">${esc(comfortMsg)}</div>
+      <div class="pv-home-nav">${navHtml}</div>
+    `, { home: true });
+  }
+
+  _ensurePreviewClock() {
+    // Live-update clock once a minute
+    if (this._previewClockTimer) return;
+    this._previewClockTimer = setInterval(() => {
+      const el = this.shadowRoot.querySelector('[data-pv-clock]');
+      if (!el) return;
+      const now = new Date();
+      el.textContent = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    }, 10_000);
+  }
+
+  // ============ MENU ============
+  _pvMenu(cfg) {
+    const enabled = this._enabledScreens(cfg);
+    const tiles = ['light','curtain','music','ac','heating','floor','convector','ventilation','menu_dummy'];
+    const grid = tiles.map(key => {
+      if (key === 'menu_dummy') return `<div class="tl disabled" style="visibility:hidden;"></div>`;
+      const m = SCREEN_META[key];
+      const on = enabled.includes(key);
+      return `
+        <div class="tl ${!on?'disabled':''}" ${on?`data-pv-action="nav-to" data-target="${key}"`:''}>
+          <ha-icon icon="${m.icon}"></ha-icon>
+          <div class="lb">${esc(m.ru)}</div>
+        </div>`;
+    }).join('');
+    return this._pvWrap(`
+      ${this._pvHeader('Меню')}
+      <div class="pv-content">
+        <div class="pv-menu-grid">${grid}</div>
+      </div>
+    `);
+  }
+
+  // ============ LIGHT ============
+  _pvLight(cfg) {
+    const ids = Array.isArray(cfg.entities?.lights) ? cfg.entities.lights : [];
+    if (!ids.length) {
+      return this._pvWrap(`${this._pvHeader('Свет')}<div class="pv-content">${this._pvEmpty('Лампы не привязаны', 'Откройте «Устройства» и выберите свет')}</div>`);
+    }
+    const rows = ids.map(eid => {
+      const s = this._pvEntState(eid);
+      if (!s) return `<div class="pv-light-row off"><span class="lr-name">${esc(eid)} <span class="lr-state">недоступно</span></span></div>`;
+      const isOn = s.state === 'on';
+      const brightnessPct = isOn && s.attributes.brightness
+        ? Math.round((s.attributes.brightness / 255) * 100)
+        : (isOn ? 100 : 0);
+      const supportsBrightness = (s.attributes.supported_color_modes || []).some(
+        m => ['brightness','color_temp','hs','rgb','rgbw','rgbww','xy'].includes(m)
+      ) || s.attributes.brightness !== undefined;
+      const fname = s.attributes.friendly_name || eid;
+      return `
+        <div class="pv-light-row ${isOn?'':'off'}">
+          <ha-icon class="lr-icon" icon="${isOn?'mdi:lightbulb-on':'mdi:lightbulb-outline'}"></ha-icon>
+          <div class="lr-name">${esc(fname)}<span class="lr-state">${isOn ? (supportsBrightness ? brightnessPct + '%' : 'вкл') : 'выкл'}</span></div>
+          ${supportsBrightness && isOn ? `
+            <div class="pv-slider" data-pv-action="light-brightness" data-entity="${esc(eid)}">
+              <div class="fill" style="width:${brightnessPct}%"></div>
+              <div class="knob" style="left:${brightnessPct}%"></div>
+            </div>
+          ` : ''}
+          <div class="pv-toggle ${isOn?'on':''}" data-pv-action="light-toggle" data-entity="${esc(eid)}">
+            <div class="thumb"></div>
+          </div>
+        </div>`;
+    }).join('');
+    return this._pvWrap(`
+      ${this._pvHeader('Свет')}
+      <div class="pv-content">${rows}</div>
+    `);
+  }
+
+  // ============ CURTAIN ============
+  _pvCurtain(cfg) {
+    const ids = Array.isArray(cfg.entities?.curtains) ? cfg.entities.curtains : [];
+    if (!ids.length) {
+      return this._pvWrap(`${this._pvHeader('Шторы')}<div class="pv-content">${this._pvEmpty('Шторы не привязаны','Откройте «Устройства» и добавьте cover.*')}</div>`);
+    }
+    const presets = [0, 25, 50, 75, 100];
+    const blocks = ids.map(eid => {
+      const s = this._pvEntState(eid);
+      if (!s) return `<div class="pv-cur-block"><div class="pv-cur-head"><span class="nm">${esc(eid)}</span><span class="pos">недоступно</span></div></div>`;
+      const pos = s.attributes.current_position;
+      const posVal = typeof pos === 'number' ? pos : (s.state === 'open' ? 100 : 0);
+      const fname = s.attributes.friendly_name || eid;
+      return `
+        <div class="pv-cur-block">
+          <div class="pv-cur-head">
+            <ha-icon icon="mdi:curtains"></ha-icon>
+            <span class="nm">${esc(fname)}</span>
+            <span class="pos">${posVal}%</span>
+          </div>
+          <div class="pv-cur-presets">
+            ${presets.map(p => `
+              <div class="pst ${Math.abs(posVal - p) < 6 ? 'active' : ''}"
+                   data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="${p}">
+                ${p === 0 ? 'Закр' : p === 100 ? 'Откр' : p+'%'}
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    }).join('');
+    return this._pvWrap(`
+      ${this._pvHeader('Шторы')}
+      <div class="pv-content">${blocks}</div>
+    `);
+  }
+
+  // ============ CLIMATE (ac/heating/floor/convector) ============
+  _pvClimate(cfg, screen) {
+    const bindKeyMap = { ac: 'acs', heating: 'heatings', floor: 'floors', convector: 'convectors' };
+    const tempKeyMap = {
+      ac: 'acs_current_temp', heating: 'heatings_current_temp',
+      floor: 'floors_current_temp', convector: 'convectors_current_temp',
+    };
+    const ids = Array.isArray(cfg.entities?.[bindKeyMap[screen]]) ? cfg.entities[bindKeyMap[screen]] : [];
+    const meta = SCREEN_META[screen];
+
+    if (!ids.length) {
+      return this._pvWrap(`${this._pvHeader(meta.ru)}<div class="pv-content">${this._pvEmpty('Не привязано',`Выберите термостаты в «Устройства → ${meta.ru}»`)}</div>`);
+    }
+
+    // Current temp display
+    const tempEid = cfg.entities?.[tempKeyMap[screen]];
+    let curTemp = null;
+    if (tempEid) {
+      const ts = this._pvEntState(tempEid);
+      if (ts && ts.state !== 'unavailable' && ts.state !== 'unknown') curTemp = parseFloat(ts.state);
+    } else if (ids.length) {
+      // Fall back to first climate's current_temperature attribute
+      const cs = this._pvEntState(ids[0]);
+      if (cs && cs.attributes.current_temperature !== undefined) curTemp = cs.attributes.current_temperature;
+    }
+
+    // Scenes table (target temperature for each)
+    const SCENES = screen === 'ac'
+      ? [{ key:'turbo', lbl:'Турбо', t:18, mode:'cool', icon:'mdi:snowflake' },
+         { key:'comfort', lbl:'Комфорт', t:22, mode:'cool', icon:'mdi:sofa-outline' },
+         { key:'eco', lbl:'Эко', t:25, mode:'cool', icon:'mdi:leaf' }]
+      : [{ key:'turbo', lbl:'Турбо', t:24, mode:'heat', icon:'mdi:fire' },
+         { key:'comfort', lbl:'Комфорт', t:22, mode:'heat', icon:'mdi:sofa-outline' },
+         { key:'eco', lbl:'Эко', t:19, mode:'heat', icon:'mdi:leaf' }];
+
+    const list = ids.map(eid => {
+      const s = this._pvEntState(eid);
+      if (!s) return `<div class="clm off"><span class="nm">${esc(eid)}</span><span class="target">офлайн</span></div>`;
+      const fname = s.attributes.friendly_name || eid;
+      const isOff = s.state === 'off' || s.state === 'unavailable';
+      const target = s.attributes.temperature;
+      // Detect active scene by matching target temp + mode
+      const activeScene = !isOff ? SCENES.find(sc =>
+        Math.abs((target || -999) - sc.t) < 0.5 && (s.state === sc.mode || s.state === 'auto')
+      )?.key : null;
+      return `
+        <div class="clm ${isOff?'off':''}">
+          <span class="nm">${esc(fname)}</span>
+          <span class="scenes">
+            ${SCENES.map(sc => `
+              <span class="scn ${activeScene === sc.key ? 'active' : ''}"
+                    data-pv-action="climate-scene" data-entity="${esc(eid)}"
+                    data-temp="${sc.t}" data-mode="${sc.mode}">
+                ${esc(sc.lbl)}
+              </span>
+            `).join('')}
+          </span>
+          <span class="target">${target !== undefined ? target+'°' : '—'}</span>
+        </div>`;
+    }).join('');
+
+    return this._pvWrap(`
+      ${this._pvHeader(meta.ru)}
+      <div class="pv-content">
+        ${curTemp !== null ? `
+          <div class="pv-climate-head">
+            <div class="cur-t">${curTemp.toFixed(1)}<span class="unit">°C</span></div>
+            <div class="lbl">В КОМНАТЕ</div>
+          </div>` : ''}
+        <div class="pv-climate-list">${list}</div>
+      </div>
+    `);
+  }
+
+  // ============ VENTILATION ============
+  _pvVentilation(cfg) {
+    const fanIds = Array.isArray(cfg.entities?.ventilation_fans) ? cfg.entities.ventilation_fans : [];
+    if (!fanIds.length) {
+      return this._pvWrap(`${this._pvHeader('Вентиляция')}<div class="pv-content">${this._pvEmpty('Вентиляторы не привязаны','«Устройства» → Вентиляция')}</div>`);
+    }
+    const co2Eid = cfg.entities?.co2_sensor;
+    const co2State = co2Eid ? this._pvEntState(co2Eid) : null;
+    const co2Val = co2State && co2State.state !== 'unavailable' && co2State.state !== 'unknown'
+      ? Math.round(parseFloat(co2State.state)) : null;
+    const co2Cls = co2Val == null ? '' : co2Val > 1400 ? 'bad' : co2Val > 1000 ? 'mid' : 'good';
+    const co2Lbl = co2Val == null ? '' : co2Val > 1400 ? 'НУЖНО ПРОВЕТРИТЬ' : co2Val > 1000 ? 'СРЕДНЕ' : 'ХОРОШО';
+
+    // Use first fan for speed control demo
+    const eid = fanIds[0];
+    const s = this._pvEntState(eid);
+    const curPct = s?.attributes?.percentage ?? (s?.state === 'on' ? 50 : 0);
+    const speeds = [0, 33, 66, 100];
+    const speedsHtml = speeds.map(p => `
+      <div class="sp ${Math.abs(curPct - p) < 8 ? 'active' : ''}"
+           data-pv-action="vent-speed" data-entity="${esc(eid)}" data-pct="${p}">
+        ${p === 0 ? 'Выкл' : p === 33 ? 'Тихо' : p === 66 ? 'Средне' : 'Турбо'}
+        <span class="pct">${p}%</span>
+      </div>`).join('');
+
+    return this._pvWrap(`
+      ${this._pvHeader('Вентиляция')}
+      <div class="pv-content">
+        ${co2Val != null ? `
+          <div class="pv-vent-co2 ${co2Cls}">
+            <div class="v">${co2Val}<span class="unit">ppm</span></div>
+            <div class="lbl">CO₂ · ${co2Lbl}</div>
+          </div>` : ''}
+        <div class="pv-vent-grid">${speedsHtml}</div>
+      </div>
+    `);
+  }
+
+  // ============ EVENT WIRING ============
+  _wirePreviewEvents(panel, cfg) {
+    const pane = this.shadowRoot.getElementById('preview-pane');
+    if (!pane) return;
+    const $$ = (sel) => pane.querySelectorAll(sel);
+
+    // Screen picker (top of pane)
+    $$('[data-pv-screen]').forEach(el => {
+      el.onclick = () => {
+        if (el.classList.contains('disabled')) {
+          this._toast('Экран выключен — включите его в «Экраны»', 'warn', { duration: 2200 });
+          return;
+        }
+        this._previewScreen = el.dataset.pvScreen;
+        this._renderPreviewPane();
+      };
+    });
+
+    // Nav inside preview (home-nav + menu tiles + back button)
+    $$('[data-pv-action="nav-home"]').forEach(el => { el.onclick = () => { this._previewScreen = 'home'; this._renderPreviewPane(); }; });
+    $$('[data-pv-action="nav-to"]').forEach(el => {
+      el.onclick = () => {
+        const tgt = el.dataset.target;
+        const enabled = this._enabledScreens(cfg);
+        if (tgt !== 'menu' && !enabled.includes(tgt)) {
+          this._toast(`Экран «${SCREEN_META[tgt]?.ru || tgt}» выключен`, 'warn', { duration: 2200 });
+          return;
+        }
+        this._previewScreen = tgt;
+        this._renderPreviewPane();
+      };
+    });
+
+    // ---- Light toggle ----
+    $$('[data-pv-action="light-toggle"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        const cur = this._pvEntState(eid);
+        const newState = cur && cur.state === 'on' ? 'off' : 'on';
+        this._pvSetPending(eid, newState);
+        this._pvCallService('light', 'toggle', { entity_id: eid });
+      };
+    });
+
+    // ---- Light brightness slider (click on track sets % directly) ----
+    $$('[data-pv-action="light-brightness"]').forEach(el => {
+      el.onclick = (e) => {
+        const rect = el.getBoundingClientRect();
+        const pct = Math.max(1, Math.min(100, Math.round(((e.clientX - rect.left) / rect.width) * 100)));
+        const eid = el.dataset.entity;
+        this._pvSetPending(eid, 'on', { brightness: Math.round((pct / 100) * 255) });
+        this._pvCallService('light', 'turn_on', { entity_id: eid, brightness_pct: pct });
+      };
+    });
+
+    // ---- Curtain set position ----
+    $$('[data-pv-action="curtain-set"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        const pos = parseInt(el.dataset.pos, 10);
+        this._pvSetPending(eid, pos === 0 ? 'closed' : 'open', { current_position: pos });
+        if (pos === 0) this._pvCallService('cover', 'close_cover', { entity_id: eid });
+        else if (pos === 100) this._pvCallService('cover', 'open_cover', { entity_id: eid });
+        else this._pvCallService('cover', 'set_cover_position', { entity_id: eid, position: pos });
+      };
+    });
+
+    // ---- Climate scene ----
+    $$('[data-pv-action="climate-scene"]').forEach(el => {
+      el.onclick = async () => {
+        const eid = el.dataset.entity;
+        const t = parseFloat(el.dataset.temp);
+        const mode = el.dataset.mode;
+        this._pvSetPending(eid, mode, { temperature: t });
+        try {
+          // Set mode first, then temperature (some climate entities reject set_temp when off)
+          await this._hass.callService('climate', 'set_hvac_mode', { entity_id: eid, hvac_mode: mode });
+          await this._hass.callService('climate', 'set_temperature', { entity_id: eid, temperature: t });
+          this._toast(`Сцена применена: ${t}° / ${mode}`, 'success', { duration: 1800 });
+        } catch (err) {
+          this._toast('Ошибка: ' + (err.message || err), 'error');
+        }
+      };
+    });
+
+    // ---- Fan / ventilation speed ----
+    $$('[data-pv-action="vent-speed"]').forEach(el => {
+      el.onclick = () => {
+        const eid = el.dataset.entity;
+        const pct = parseInt(el.dataset.pct, 10);
+        this._pvSetPending(eid, pct === 0 ? 'off' : 'on', { percentage: pct });
+        if (pct === 0) this._pvCallService('fan', 'turn_off', { entity_id: eid });
+        else this._pvCallService('fan', 'set_percentage', { entity_id: eid, percentage: pct });
+      };
+    });
+  }
+
+  _pvCallService(domain, service, data) {
+    if (!this._hass) return;
+    this._hass.callService(domain, service, data)
+      .then(() => {
+        // Subtle confirmation — could become annoying; only show on errors.
+      })
+      .catch(err => {
+        this._toast(`Ошибка ${domain}.${service}: ${err.message || err}`, 'error', { duration: 3500 });
+        // Roll back pending on error
+        if (data.entity_id) this._previewPending.delete(data.entity_id);
+        this._renderPreviewPane();
+      });
+  }
 }
 
 customElements.define('bms-panel-editor', BMSPanelEditor);
 
-console.info('%c BMS-PANEL %c 2.0.0 — modular ',
+console.info('%c BMS-PANEL %c 2.1.0 — live preview ',
   'color:#fff;background:#3a5bff;padding:2px 6px;border-radius:3px 0 0 3px',
   'color:#3a5bff;background:#f0f4ff;padding:2px 6px;border-radius:0 3px 3px 0');
