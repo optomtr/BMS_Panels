@@ -50,14 +50,15 @@ BIND_KEYS = {
     "temp_sensor":     {"multi": False, "domain": "sensor",       "requires_screen": None},
     "humidity_sensor": {"multi": False, "domain": "sensor",       "requires_screen": None},
 
-    # Fallback-сенсоры для climate-экранов (когда сам термостат не отдаёт current_temperature)
-    "ac_temp_sensor":        {"multi": False, "domain": "sensor", "requires_screen": "ac"},
-    "heating_temp_sensor":   {"multi": False, "domain": "sensor", "requires_screen": "heating"},
-    "floor_temp_sensor":     {"multi": False, "domain": "sensor", "requires_screen": "floor"},
-    "convector_temp_sensor": {"multi": False, "domain": "sensor", "requires_screen": "convector"},
+    # Fallback-сенсоры для climate-экранов (когда сам термостат не отдаёт current_temperature).
+    # Имена строго совпадают с APK pinnedOne() в ClimateMoodScreen.kt: <screen_plural>_current_temp.
+    "acs_current_temp":        {"multi": False, "domain": "sensor", "requires_screen": "ac"},
+    "heatings_current_temp":   {"multi": False, "domain": "sensor", "requires_screen": "heating"},
+    "floors_current_temp":     {"multi": False, "domain": "sensor", "requires_screen": "floor"},
+    "convectors_current_temp": {"multi": False, "domain": "sensor", "requires_screen": "convector"},
 
-    # Отдельные вентиляторы (для AC/конвектора)
-    "ac_fan":         {"multi": False, "domain": "fan", "requires_screen": "ac"},
+    # Отдельный вентилятор для конвектора (APK ConvectorScreen читает скорость отдельно).
+    # NB: ac_fan убран — APK его не читает (управление вентилятором AC идёт через climate entity).
     "convector_fan":  {"multi": False, "domain": "fan", "requires_screen": "convector"},
 }
 
@@ -106,7 +107,7 @@ SIGNAL_CONFIG_UPDATED = f"{DOMAIN}_config_updated"  # arg: panel_id
 
 # ---- Storage ----
 STORAGE_VERSION_MAJOR = 1
-STORAGE_VERSION_MINOR = 2  # bumped когда меняется shape DEFAULT_CONFIG
+STORAGE_VERSION_MINOR = 3  # v3: переименование bind keys под APK plural-схему (acs_current_temp etc.)
 STORAGE_KEY = "bms_panel.configs"
 
 # ---- Slug — только ASCII, чтобы entity_id всегда был валидным ----

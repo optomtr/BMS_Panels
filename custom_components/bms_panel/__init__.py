@@ -82,6 +82,58 @@ def _slug(s: str) -> str:
     return s
 
 
+# Top-level ключи конфига и стратегия мерджа для каждого:
+#   "merge_dict"    — deep-merge словарь по ключам (per-key override)
+#   "merge_entities" — то же, но per-bind-key (массивы заменяются целиком,
+#                       чтобы можно было «очистить» bindings одного экрана)
+#   "replace"       — целиком переопределить (списки и скаляры)
+_MERGE_STRATEGY = {
+    "screens":        "merge_dict",
+    "entities":       "merge_entities",
+    "home_nav":       "replace",
+    "background_dim": "replace",
+    "screen_timeout": "replace",
+    "language":       "replace",
+    "area_id":        "replace",
+    "schema_version": "replace",
+}
+
+
+def _merge_config(existing: dict, patch: dict) -> dict:
+    """Слить patch в existing по правилам _MERGE_STRATEGY.
+
+    Возвращает НОВЫЙ dict (не мутирует входы). Ключи которых нет в patch —
+    остаются от existing. Любые extra-ключи patch пропускаются как есть
+    (CONFIG_SCHEMA с REMOVE_EXTRA их потом выкинет).
+
+    Используется в `update_config` service handler: вызов сервиса с
+    `{screen_timeout: 600}` НЕ должен затереть bindings/screens.
+    """
+    out = copy.deepcopy(existing) if existing else {}
+    if not isinstance(patch, dict):
+        return out
+    for k, v in patch.items():
+        strategy = _MERGE_STRATEGY.get(k, "replace")
+        if strategy == "merge_dict" and isinstance(v, dict) and isinstance(out.get(k), dict):
+            merged = dict(out[k])
+            for sub_k, sub_v in v.items():
+                # screens.{light: {...}} — заменяем целиком per-экран,
+                # т.к. экран = единый блок (enabled+order+label).
+                merged[sub_k] = sub_v
+            out[k] = merged
+        elif strategy == "merge_entities" and isinstance(v, dict) and isinstance(out.get(k), dict):
+            merged = dict(out[k])
+            for bk, bv in v.items():
+                # bindings: per-bind-key override. Если patch явно прислал
+                # `{lights: []}` — bindings очищаются для этого экрана,
+                # но остальные ключи (curtains, acs ...) сохраняются.
+                merged[bk] = bv
+            out[k] = merged
+        else:
+            out[k] = v
+    return out
+
+
 def _unique_panel_id(base: str, existing) -> str:
     """Вернуть свободный panel_id на основе base: kitchen, kitchen_2, ..."""
     base = _slug(base)
@@ -256,9 +308,18 @@ async def _async_register_services(hass: HomeAssistant) -> None:
     async def update_config(call: ServiceCall) -> None:
         panel_id = (call.data["panel_id"] or "").strip().lower()
         raw_cfg = call.data.get("config") or {}
+        merge_mode = call.data.get("merge", True)  # default: partial-update friendly
 
         if panel_id not in hass.data[DOMAIN]["meta"]:
             raise HomeAssistantError(f"Panel '{panel_id}' not found. Используйте add_panel сначала.")
+
+        # 0. Merge с существующим конфигом (если merge=True, default).
+        # Раньше service делал REPLACE: `update_config({screen_timeout: 300})`
+        # стирал bindings/screens/home_nav. Теперь partial config — это патч,
+        # а не полная замена. Для полной замены передать merge=False.
+        existing_cfg = hass.data[DOMAIN]["configs"].get(panel_id, {}) or {}
+        if merge_mode and isinstance(raw_cfg, dict) and isinstance(existing_cfg, dict):
+            raw_cfg = _merge_config(existing_cfg, raw_cfg)
 
         # 1. Schema-normalize (отбрасывает мусор, проставляет дефолты)
         cfg = normalize_config(raw_cfg)
@@ -490,6 +551,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_UPDATE_CONFIG, update_config, vol.Schema({
             vol.Required("panel_id"): cv.string,
             vol.Required("config"):   dict,
+            # merge=True (default) — partial config мерджится с существующим.
+            # merge=False — REPLACE: полная замена (для editor.js «Сохранить» button).
+            vol.Optional("merge"):    cv.boolean,
         })),
         (SERVICE_RESET_CONFIG,  reset_config,  vol.Schema({vol.Required("panel_id"): cv.string})),
         (SERVICE_ADD_PANEL,     add_panel,     vol.Schema({

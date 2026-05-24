@@ -70,9 +70,92 @@ def _bind_value(meta):
     return _entity_list if meta["multi"] else _entity_value
 
 
-ENTITIES_SCHEMA = vol.Schema({
-    vol.Optional(key): _bind_value(meta) for key, meta in BIND_KEYS.items()
-})
+ENTITIES_SCHEMA = vol.Schema(
+    {vol.Optional(key): _bind_value(meta) for key, meta in BIND_KEYS.items()},
+    # REMOVE_EXTRA — старые ключи (ac_temp_sensor, ac_fan и т.д.) дропаются
+    # тихо, чтобы единичная ошибка не сбросила ВЕСЬ конфиг до DEFAULT.
+    # Полноценная миграция этих ключей живёт в _migrate_entities, она должна
+    # отработать ДО ENTITIES_SCHEMA — см. migrate_storage().
+    extra=vol.REMOVE_EXTRA,
+)
+
+
+# ---------- Карта переименований bind-ключей (для миграции старых storage) ----------
+# v1.2 → v1.3: APK ожидает plural-имена для fallback-сенсоров температуры и
+# не использует ac_fan. Сюда же кладём «исторические» имена на случай если
+# какой-то ранний билд писал их в storage (light_master, ac_climate и т.д.).
+# Если new_key=None — ключ просто удаляется (APK его больше не читает).
+LEGACY_BIND_KEY_MAP: dict[str, str | None] = {
+    # Old singular → new plural (fallback-сенсоры climate-экранов)
+    "ac_temp_sensor":        "acs_current_temp",
+    "heating_temp_sensor":   "heatings_current_temp",
+    "floor_temp_sensor":     "floors_current_temp",
+    "convector_temp_sensor": "convectors_current_temp",
+
+    # Удалённые ключи: APK ими не пользуется.
+    "ac_fan": None,
+
+    # Гипотетические очень-старые имена — на случай legacy storage с pre-v2 билдов.
+    # Если их в проде нет — миграция просто пройдёт мимо (idempotent).
+    "light_master":   "lights",
+    "curtain_master": "curtains",
+    "ac_climate":     "acs",
+    "heating_climate":   "heatings",
+    "floor_climate":     "floors",
+    "convector_climate": "convectors",
+    "vent_fan":          "ventilation_fans",
+    "media_player":      "media_players",
+}
+
+
+def _migrate_entities(entities: dict | None) -> dict:
+    """Переименовать legacy bind keys на новые plural-имена.
+
+    - singular строка → массив (если новый ключ multi)
+    - конфликт (старый + новый одновременно): merge с dedup, новый — приоритет
+    - удалённые ключи (map → None): просто выбрасываем
+    Идемпотентно: повторный вызов на уже-мигрированном dict ничего не меняет.
+    """
+    if not isinstance(entities, dict):
+        return {}
+
+    out: dict = dict(entities)  # копия, чтобы не мутировать вход
+
+    for old_key, new_key in LEGACY_BIND_KEY_MAP.items():
+        if old_key not in out:
+            continue
+        old_val = out.pop(old_key)
+        if new_key is None:
+            # Удалить — APK не использует.
+            continue
+        new_meta = BIND_KEYS.get(new_key)
+        if not new_meta:
+            # Целевого ключа нет в текущей схеме — игнор
+            continue
+
+        if new_meta["multi"]:
+            existing = out.get(new_key) or []
+            if not isinstance(existing, list):
+                existing = [existing] if existing else []
+            extra = []
+            if isinstance(old_val, list):
+                extra = [x for x in old_val if x]
+            elif isinstance(old_val, str) and old_val:
+                extra = [old_val]
+            seen = set(existing)
+            for x in extra:
+                if x not in seen:
+                    existing.append(x)
+                    seen.add(x)
+            out[new_key] = existing
+        else:
+            # single: новый ключ выигрывает если уже задан непустым
+            if not out.get(new_key) and old_val:
+                if isinstance(old_val, list):
+                    old_val = next((x for x in old_val if x), None)
+                out[new_key] = old_val
+
+    return out
 
 
 # ---------- Главная схема конфига ----------
@@ -143,7 +226,9 @@ def migrate_storage(old_data: dict) -> dict:
       { "configs": { panel_id: cfg }, "meta": { panel_id: {panel_name} } }
 
     v1.1 → v1.2: добавлены ключи в entities (ac_temp_sensor и т.д.).
-    Решается просто прогоном через CONFIG_SCHEMA — дефолты сами проставятся.
+                 Решается простым прогоном через CONFIG_SCHEMA — дефолты сами проставятся.
+    v1.2 → v1.3: APK перешёл на plural bind keys. Переименовываем старые ключи
+                 в entities ДО schema normalize (иначе REMOVE_EXTRA их выкинет).
 
     Pure sync функция — нет I/O. Если в будущем понадобятся awaitable шаги
     (например очистка orphan registry entries), сделаем async-обёртку.
@@ -156,6 +241,13 @@ def migrate_storage(old_data: dict) -> dict:
 
     new_configs = {}
     for panel_id, cfg in configs.items():
+        cfg = cfg or {}
+        # 1) Pre-migrate entities — переименовать legacy ключи до того как
+        # CONFIG_SCHEMA выкинет их как REMOVE_EXTRA.
+        if isinstance(cfg, dict) and isinstance(cfg.get("entities"), dict):
+            cfg = dict(cfg)
+            cfg["entities"] = _migrate_entities(cfg["entities"])
+        # 2) Прогон через схему: дефолты, типы, выкинуть мусор
         new_configs[panel_id] = normalize_config(cfg)
 
     return {"configs": new_configs, "meta": dict(meta)}

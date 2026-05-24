@@ -44,25 +44,24 @@ const BIND_GROUPS = [
     ] },
   { key: 'ac',          title: 'Кондиционер',    icon: 'mdi:air-conditioner',   screen: 'ac',
     binds: [
-      { key: 'acs',            label: 'Термостаты AC' },
-      { key: 'ac_temp_sensor', label: 'Отдельный сенсор температуры (опц.)' },
-      { key: 'ac_fan',         label: 'Отдельный вентилятор (опц.)' },
+      { key: 'acs',               label: 'Термостаты AC' },
+      { key: 'acs_current_temp',  label: 'Отдельный сенсор температуры (опц.)' },
     ] },
   { key: 'heating',     title: 'Радиаторы',      icon: 'mdi:radiator',          screen: 'heating',
     binds: [
-      { key: 'heatings',           label: 'Термостаты радиаторов' },
-      { key: 'heating_temp_sensor', label: 'Отдельный сенсор температуры (опц.)' },
+      { key: 'heatings',              label: 'Термостаты радиаторов' },
+      { key: 'heatings_current_temp', label: 'Отдельный сенсор температуры (опц.)' },
     ] },
   { key: 'floor',       title: 'Тёплый пол',     icon: 'mdi:heating-coil',      screen: 'floor',
     binds: [
-      { key: 'floors',            label: 'Термостаты тёплого пола' },
-      { key: 'floor_temp_sensor', label: 'Отдельный сенсор температуры (опц.)' },
+      { key: 'floors',              label: 'Термостаты тёплого пола' },
+      { key: 'floors_current_temp', label: 'Отдельный сенсор температуры (опц.)' },
     ] },
   { key: 'convector',   title: 'Конвектор',      icon: 'mdi:radiator-disabled', screen: 'convector',
     binds: [
-      { key: 'convectors',            label: 'Термостаты конвекторов' },
-      { key: 'convector_temp_sensor', label: 'Отдельный сенсор температуры (опц.)' },
-      { key: 'convector_fan',         label: 'Отдельный вентилятор (опц.)' },
+      { key: 'convectors',              label: 'Термостаты конвекторов' },
+      { key: 'convectors_current_temp', label: 'Отдельный сенсор температуры (опц.)' },
+      { key: 'convector_fan',           label: 'Отдельный вентилятор (опц.)' },
     ] },
   { key: 'ventilation', title: 'Вентиляция',     icon: 'mdi:fan',               screen: 'ventilation',
     binds: [
@@ -2251,9 +2250,13 @@ class BMSPanelEditor extends HTMLElement {
       return;
     }
     const cfg = this._workingConfig(panel);
+    // merge=false — editor.js всегда сохраняет ПОЛНЫЙ working config,
+    // partial-merge (default true) предназначен только для внешних вызовов
+    // через automation/script (например пользователь скриптом меняет один screen_timeout).
     this._hass.callService('bms_panel', 'update_config', {
       panel_id: panel.panel_id,
       config: cfg,
+      merge: false,
     })
       .then(() => {
         this._dirty = false;

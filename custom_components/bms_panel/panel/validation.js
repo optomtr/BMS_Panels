@@ -35,12 +35,14 @@ export const BIND_KEYS = {
   co2_sensor:       { multi: false, domain: 'sensor',       requiresScreen: 'ventilation' },
   temp_sensor:      { multi: false, domain: 'sensor',       requiresScreen: null          },
   humidity_sensor:  { multi: false, domain: 'sensor',       requiresScreen: null          },
-  ac_temp_sensor:        { multi: false, domain: 'sensor', requiresScreen: 'ac'        },
-  heating_temp_sensor:   { multi: false, domain: 'sensor', requiresScreen: 'heating'   },
-  floor_temp_sensor:     { multi: false, domain: 'sensor', requiresScreen: 'floor'     },
-  convector_temp_sensor: { multi: false, domain: 'sensor', requiresScreen: 'convector' },
-  ac_fan:                { multi: false, domain: 'fan',    requiresScreen: 'ac'        },
-  convector_fan:         { multi: false, domain: 'fan',    requiresScreen: 'convector' },
+  // Fallback-сенсоры для climate-экранов — имена строго совпадают с APK:
+  // ClimateMoodScreen.kt pinnedOne("acs_current_temp") и т.д.
+  acs_current_temp:        { multi: false, domain: 'sensor', requiresScreen: 'ac'        },
+  heatings_current_temp:   { multi: false, domain: 'sensor', requiresScreen: 'heating'   },
+  floors_current_temp:     { multi: false, domain: 'sensor', requiresScreen: 'floor'     },
+  convectors_current_temp: { multi: false, domain: 'sensor', requiresScreen: 'convector' },
+  // ac_fan убран — APK им не пользуется (вентилятор AC управляется через climate entity).
+  convector_fan:           { multi: false, domain: 'fan',    requiresScreen: 'convector' },
 };
 
 export const SCREEN_KEYS = ['light','curtain','music','ac','heating','floor','convector','ventilation'];

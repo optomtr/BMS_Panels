@@ -327,7 +327,11 @@ def validate(
                         {"type": "bind_card", "key": bk, "entity_id": eid},
                     ))
 
-            elif domain == "sensor" and bk in ("temp_sensor", "ac_temp_sensor", "heating_temp_sensor", "floor_temp_sensor", "convector_temp_sensor"):
+            elif domain == "sensor" and bk in (
+                "temp_sensor",
+                "acs_current_temp", "heatings_current_temp",
+                "floors_current_temp", "convectors_current_temp",
+            ):
                 if attrs.get("device_class") not in (None, "temperature"):
                     issues.append(Issue(
                         f"V45_{bk}_{eid}", SEV_WARN,
