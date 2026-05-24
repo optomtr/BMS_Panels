@@ -295,6 +295,16 @@ export function validate(cfg, panelId, allPanels, hassStates) {
   }
 
   // ---- E. Дубликаты ----
+  // Read-only домены (sensor, binary_sensor и т.д.) делить между слотами/панелями —
+  // НОРМА. Например один датчик температуры комнаты может питать AC + Heating + Floor
+  // одновременно, или один уличный термометр — две панели. Не репортим вообще.
+  // Запрещаем только для actuator-ов, где команды экранов конфликтуют.
+  const READ_ONLY_DOMAINS = new Set([
+    'sensor', 'binary_sensor', 'weather', 'person', 'zone',
+    'sun', 'device_tracker', 'input_text', 'input_number',
+  ]);
+  const isReadOnly = (eid) => READ_ONLY_DOMAINS.has((eid || '').split('.', 1)[0]);
+
   // одна entity в нескольких слотах ОДНОЙ панели
   const seenInKeys = new Map();
   for (const [bk, val] of Object.entries(entities)) {
@@ -307,12 +317,12 @@ export function validate(cfg, panelId, allPanels, hassStates) {
     }
   }
   for (const [eid, keys] of seenInKeys) {
-    if (keys.length > 1) {
-      out.push(makeIssue(`V56_${eid}`, SEV_WARN,
-        `«${eid}» привязан одновременно к: ${keys.join(', ')}.`,
-        'Можно сохранить, но проверьте: один entity будет использоваться в нескольких слотах.',
-        { type: 'duplicate_self', entity_id: eid }));
-    }
+    if (keys.length <= 1) continue;
+    if (isReadOnly(eid)) continue;  // sensor в N слотах — это OK
+    out.push(makeIssue(`V56_${eid}`, SEV_WARN,
+      `«${eid}» привязан одновременно к: ${keys.join(', ')}.`,
+      'Один и тот же исполнитель в нескольких слотах — команды экранов будут конфликтовать.',
+      { type: 'duplicate_self', entity_id: eid }));
   }
 
   // одна entity в 2-х панелях — dedup по (eid, other_panel)
@@ -329,6 +339,7 @@ export function validate(cfg, panelId, allPanels, hassStates) {
     for (const [bk, val] of Object.entries(otherEnts)) {
       const ids = (val && (Array.isArray(val) ? val : [val])) || [];
       for (const eid of ids) {
+        if (isReadOnly(eid)) continue;
         const dupKey = `${eid}|${otherName}`;
         if (myEnts.has(eid) && !seenDups.has(dupKey)) {
           seenDups.add(dupKey);

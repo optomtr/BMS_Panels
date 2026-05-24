@@ -165,10 +165,18 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         hass.data[DOMAIN]["static_registered"] = True
 
     # ---- Cache-busting: version из manifest.json ----
+    # async-friendly: HA не любит open() в event loop (выдаёт WARNING про blocking call).
+    # Читаем через executor — то же самое, но не блокирует loop.
     addon_version = "unknown"
+    manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
+    def _read_manifest() -> str:
+        try:
+            with open(manifest_path, "r") as f:
+                return json.load(f).get("version", "unknown")
+        except Exception:  # noqa: BLE001
+            return "unknown"
     try:
-        with open(os.path.join(os.path.dirname(__file__), "manifest.json"), "r") as f:
-            addon_version = json.load(f).get("version", "unknown")
+        addon_version = await hass.async_add_executor_job(_read_manifest)
     except Exception:  # noqa: BLE001
         pass
     hass.data[DOMAIN]["addon_version"] = addon_version

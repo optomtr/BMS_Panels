@@ -349,6 +349,12 @@ def validate(
                     my_entities.add(eid)
 
         seen_dups: set[tuple[str, str]] = set()
+        # Sensor-подобные entity на нескольких панелях — НОРМА (один уличный
+        # термометр, две панели). Дублирование актуально только для actuator-ов.
+        _read_only = {
+            "sensor", "binary_sensor", "weather", "person", "zone",
+            "sun", "device_tracker", "input_text", "input_number",
+        }
         for p in all_panels:
             if p.get("panel_id") == panel_id:
                 continue
@@ -358,6 +364,9 @@ def validate(
                 ids = (val if isinstance(val, list) else [val]) if val else []
                 for eid in ids:
                     if eid in my_entities and (eid, other_pname) not in seen_dups:
+                        domain = eid.split(".", 1)[0] if "." in eid else ""
+                        if domain in _read_only:
+                            continue
                         seen_dups.add((eid, other_pname))
                         issues.append(Issue(
                             f"V55_{eid}_{other_pname}", SEV_WARN,
@@ -367,6 +376,15 @@ def validate(
                         ))
 
     # одна entity в нескольких слотах одной панели (например AC ↔ Heating)
+    # ВАЖНО: read-only домены (sensor, binary_sensor, weather, …) делить — НОРМА.
+    # Один датчик температуры комнаты может питать AC + Heating + Floor одновременно —
+    # это валидный кейс «одна комната, несколько обогревателей».
+    # Дублирование запрещаем только для actuator-доменов, где состояние команды
+    # одного экрана затрёт другое (light/cover/fan/media_player/climate/switch).
+    READ_ONLY_DOMAINS = {
+        "sensor", "binary_sensor", "weather", "person", "zone",
+        "sun", "device_tracker", "input_text", "input_number",
+    }
     seen_in_keys: dict[str, list[str]] = {}
     for bk, val in entities.items():
         ids = (val if isinstance(val, list) else [val]) if val else []
@@ -374,13 +392,18 @@ def validate(
             if eid:
                 seen_in_keys.setdefault(eid, []).append(bk)
     for eid, keys in seen_in_keys.items():
-        if len(keys) > 1:
-            issues.append(Issue(
-                f"V56_{eid}", SEV_WARN,
-                f"«{eid}» привязан одновременно к: {', '.join(keys)}.",
-                "Можно сохранить, но проверьте: один entity будет использоваться в нескольких слотах.",
-                {"type": "duplicate_self", "entity_id": eid},
-            ))
+        if len(keys) <= 1:
+            continue
+        domain = eid.split(".", 1)[0] if "." in eid else ""
+        if domain in READ_ONLY_DOMAINS:
+            # Sensor-подобный entity в нескольких слотах — валидно. Молча пропускаем.
+            continue
+        issues.append(Issue(
+            f"V56_{eid}", SEV_WARN,
+            f"«{eid}» привязан одновременно к: {', '.join(keys)}.",
+            "Один и тот же исполнитель в нескольких слотах — команды экранов будут конфликтовать.",
+            {"type": "duplicate_self", "entity_id": eid},
+        ))
 
     return issues
 
