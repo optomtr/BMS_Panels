@@ -664,7 +664,7 @@ input[type=range] { width: 100%; }
 /* Blurred backdrop for sub-screens (same as index.html .panel::before) */
 .pv-panel::before {
   content: ''; position: absolute; inset: -30px;
-  background: var(--pv-bg-img, url('/bms_panel_static/background.png?v=2.2.2')) center/cover no-repeat;
+  background: var(--pv-bg-img, url('/bms_panel_static/background.png?v=2.2.3')) center/cover no-repeat;
   filter: blur(18px); transform: scale(1.1);
   z-index: -1;
 }
@@ -860,36 +860,42 @@ input[type=range] { width: 100%; }
   font-size: 14px; color: rgba(255,255,255,0.7);
   font-variant-numeric: tabular-nums;
 }
-.pv-curtain-device .slider-wrap {
-  position: relative; height: 60px; margin: 0 4px;
+/* APK CurtainScreen.kt: 5 preset pills (0/25/50/75/100%) — без slider */
+.pv-curtain-device .preset-row {
+  display: flex; gap: 6px; margin: 4px 0 8px;
 }
-.pv-curtain-device .slider-track {
-  position: absolute; left: 0; right: 0; top: 32px;
-  height: 2px; background: rgba(255,255,255,0.45);
+.pv-curtain-device .preset-row .pv-curtain-preset {
+  flex: 1; height: 36px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 8px; background: rgba(26,22,18,0.5);
+  color: rgba(255,255,255,0.85); font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
 }
-.pv-curtain-device .slider-handle {
-  position: absolute; top: 22px;
-  width: 22px; height: 22px;
-  background: #3a3a3c; border: 1.5px solid #fff;
-  border-radius: 50%;
-  cursor: pointer; transform: translateX(-50%); z-index: 2;
-  pointer-events: none;
+.pv-curtain-device .preset-row .pv-curtain-preset:active {
+  background: rgba(255,255,255,0.10); transform: scale(0.97);
+}
+.pv-curtain-device .preset-row .pv-curtain-preset.active {
+  border-color: #C99A55; border-width: 1.5px;
+  background: rgba(201,154,85,0.15); color: #fff;
 }
 .pv-curtain-device .btn-row {
   display: flex; justify-content: space-between; gap: 10px; margin-top: 4px;
 }
 .pv-curtain-device .btn {
-  flex: 1; height: 36px;
-  border: 1px solid rgba(255,255,255,0.45);
-  border-radius: 6px; background: transparent;
+  flex: 1; height: 42px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px; background: rgba(26,22,18,0.5);
   color: #fff; font-size: 15px; cursor: pointer;
   font-family: inherit;
   display: flex; align-items: center; justify-content: center;
 }
-.pv-curtain-device .btn:active { background: rgba(255,255,255,0.15); }
+.pv-curtain-device .btn:active { background: rgba(255,255,255,0.10); transform: scale(0.98); }
 .pv-curtain-device .btn.active {
-  border-color: #fff; border-width: 1.5px;
-  background: rgba(255,255,255,0.08);
+  border-color: #C99A55; border-width: 1.5px;
+  background: rgba(201,154,85,0.18); color: #fff;
 }
 
 /* Status label под header (Light/Curtain) */
@@ -1012,9 +1018,38 @@ input[type=range] { width: 100%; }
 }
 .pv-climate-cur.disabled { opacity: 0.45; }
 
+/* Smart context line: «● Прогрев до 25° · ≈20 мин» */
+.pv-climate-context {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px;
+  font-size: 14px; font-weight: 300;
+  color: rgba(255,255,255,0.8);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.pv-climate-context .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  display: inline-block;
+}
+.pv-climate-context .dot.pulse {
+  background: #C99A55;
+  animation: pv-climate-pulse 1.5s ease-in-out infinite;
+}
+@keyframes pv-climate-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+.pv-climate-scene.pv-climate-manual .t .manual-dot {
+  display: inline-block;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #C99A55; margin-left: 6px;
+  vertical-align: middle;
+  animation: pv-climate-pulse 2s ease-in-out infinite;
+}
+
 /* 4 vertical scene rows (Турбо / Комфорт / Эко / Ручной) */
 .pv-climate-scenes {
-  position: absolute; left: 16px; right: 16px; top: 208px; bottom: 12px;
+  position: absolute; left: 16px; right: 16px; top: 230px; bottom: 12px;
   display: flex; flex-direction: column; gap: 6px; z-index: 2;
 }
 .pv-climate-scene {
@@ -1060,51 +1095,69 @@ input[type=range] { width: 100%; }
 .pv-climate-scene.active .t { color: #C99A55; }
 
 /* ============ VENTILATION ============ */
+/* APK VentScreen.kt: «Качество воздуха» (13sp grey) → большой статус словом
+ * (28sp Light, цветной) → «CO₂ 850 ppm» (14sp 55% white). Никакого pill-status. */
 .pv-vent-quality {
-  position: absolute; top: 78px; left: 0; right: 0; height: 240px;
+  position: absolute; top: 78px; left: 0; right: 0; height: 200px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 2;
+  z-index: 2; gap: 4px;
 }
 .pv-vent-quality .label {
-  font-size: 12px; color: rgba(255,255,255,0.5);
-  letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px;
+  font-size: 13px; color: rgba(255,255,255,0.65); letter-spacing: 0.3px;
 }
-.pv-vent-quality .value {
-  display: flex; align-items: flex-end; line-height: 1;
-}
-.pv-vent-quality .num {
-  font-size: 92px; font-weight: 200; color: #fff;
-  font-variant-numeric: tabular-nums;
+.pv-vent-quality .status-big {
+  font-size: 36px; font-weight: 300;
   text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  margin-top: 4px;
 }
-.pv-vent-quality .unit {
-  font-size: 24px; font-weight: 300;
-  color: rgba(255,255,255,0.6);
-  margin-left: 6px; margin-bottom: 10px;
+.pv-vent-quality .status-big.good     { color: #6ce0a3; }
+.pv-vent-quality .status-big.moderate { color: #ffd166; }
+.pv-vent-quality .status-big.poor     { color: #ff7a7a; }
+.pv-vent-quality .co2-line {
+  font-size: 14px; color: rgba(255,255,255,0.55);
+  font-variant-numeric: tabular-nums; margin-top: 4px;
 }
-.pv-vent-quality .status {
-  margin-top: 14px; padding: 5px 16px;
-  border-radius: 14px; font-size: 14px; font-weight: 500;
-  border: 1.5px solid; letter-spacing: 0.3px;
-}
-.pv-vent-quality .status.good     { color: #6ce0a3; border-color: rgba(108,224,163,0.7); }
-.pv-vent-quality .status.moderate { color: #ffd166; border-color: rgba(255,209,102,0.7); }
-.pv-vent-quality .status.poor     { color: #ff7a7a; border-color: rgba(255,122,122,0.7); }
 
-/* Vent fan speed pills — in BMS they're 2×2 grid (after VENT-FIXES) */
+/* Vent fan speed tiles — 2×2 grid, иконка + label (APK VentTile) */
 .pv-vent-fan {
-  position: absolute; left: 22px; right: 22px; bottom: 28px; z-index: 2;
+  position: absolute; left: 18px; right: 18px; bottom: 16px; z-index: 2;
 }
 .pv-vent-fan .label {
-  font-size: 12px; color: rgba(255,255,255,0.55);
-  letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;
+  font-size: 13px; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.3px; margin-bottom: 8px;
 }
 .pv-vent-fan .grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
 }
-.pv-vent-fan .pv-pill {
-  height: 44px; font-size: 14px;
+.pv-vent-fan .pv-vent-tile {
+  height: 74px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  background: rgba(26,22,18,0.6);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px;
+  color: rgba(255,255,255,0.9); font-family: inherit;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s, transform 0.08s;
 }
+.pv-vent-fan .pv-vent-tile:active {
+  background: rgba(255,255,255,0.08); transform: scale(0.97);
+}
+.pv-vent-fan .pv-vent-tile.active {
+  background: #2A2018;
+  border-color: #C99A55; border-width: 1.5px;
+  color: #fff;
+}
+.pv-vent-fan .pv-vent-tile .ico {
+  display: flex; align-items: center; justify-content: center;
+}
+.pv-vent-fan .pv-vent-tile .ico ha-icon {
+  --mdc-icon-size: 26px; color: rgba(255,255,255,0.75);
+}
+.pv-vent-fan .pv-vent-tile.active .ico ha-icon { color: #E2A66B; }
+.pv-vent-fan .pv-vent-tile .lbl {
+  font-size: 15px; font-weight: 400;
+}
+.pv-vent-fan .pv-vent-tile.active .lbl { font-weight: 500; }
 
 /* ============ Background-URL field (Overview tab) ============ */
 .bg-url-row {
@@ -3495,9 +3548,9 @@ class BMSPanelEditor extends HTMLElement {
   _pvWrap(inner, opts = {}) {
     const cfg = opts.cfg || {};
     const customBg = (cfg.background_image_url || '').trim();
-    // ВАЖНО: для built-in PNG добавляем cache-bust ?v=2.2.2 — без этого
+    // ВАЖНО: для built-in PNG добавляем cache-bust ?v=2.2.3 — без этого
     // браузер может закэшировать 404 от старой инсталляции и preview будет чёрный.
-    const bgUrl = customBg || '/bms_panel_static/background.png?v=2.2.2';
+    const bgUrl = customBg || '/bms_panel_static/background.png?v=2.2.3';
     const homeDim = ((cfg.background_dim ?? 30) / 100).toFixed(2);
     const cls = opts.home ? 'pv-home' : 'pv-sub';
     const climateCls = opts.climate ? `pv-climate ${esc(opts.climate)}` : '';
@@ -3592,7 +3645,7 @@ class BMSPanelEditor extends HTMLElement {
     const humLabel = !isNaN(hNum)
       ? (hNum < 30 ? 'сухо' : hNum < 60 ? 'влажность в норме' : 'влажно')
       : null;
-    if (tempLabel && humLabel) comfortMsg = `Дома ${tempLabel} · ${humLabel}`;
+    if (tempLabel && humLabel) comfortMsg = `Дома ${tempLabel}, ${humLabel}`;
     else if (tempLabel) comfortMsg = `Дома ${tempLabel}`;
     else if (humLabel) comfortMsg = humLabel.charAt(0).toUpperCase() + humLabel.slice(1);
 
@@ -3626,12 +3679,12 @@ class BMSPanelEditor extends HTMLElement {
         <div class="cli">
           <div class="cli-icon">${tempIcon}</div>
           <div class="cli-val">${tempVal}°<span class="unit">C</span></div>
-          <div class="cli-lbl">Temperature</div>
+          <div class="cli-lbl">Температура</div>
         </div>
         <div class="cli">
           <div class="cli-icon">${humIcon}</div>
           <div class="cli-val">${humVal}<span class="unit">%</span></div>
-          <div class="cli-lbl">Humidity</div>
+          <div class="cli-lbl">Влажность</div>
         </div>
       </div>
       <div class="pv-home-band"></div>
@@ -3689,8 +3742,14 @@ class BMSPanelEditor extends HTMLElement {
     const padCount = Math.max(0, 9 - total);
     const padHtml = '<div class="tl empty"></div>'.repeat(Math.min(padCount, 9));
 
+    // Lock icon в правом верхнем углу (APK: short tap = lock screen, hold 4s = installer).
+    // В preview — декоративная, не кликается.
+    const lockBtn = `
+      <div class="pv-header-btn pv-header-lock" title="Блокировка">
+        <svg viewBox="0 0 32 32"><rect x="9" y="14" width="14" height="12" rx="2"/><path d="M12 14 v-3 a4 4 0 0 1 8 0 v3"/></svg>
+      </div>`;
     return this._pvWrap(`
-      ${this._pvHeader('Управление')}
+      ${this._pvHeader('Управление', { rightBtn: lockBtn })}
       <div class="pv-menu-grid">${sysHtml}${customHtml}${padHtml}</div>
     `, { cfg });
   }
@@ -3792,30 +3851,40 @@ class BMSPanelEditor extends HTMLElement {
         ${this._pvEmpty('Шторы не привязаны', 'Откройте «Устройства» и добавьте cover.*')}
       `, { cfg });
     }
+    // APK layout (CurtainScreen.kt): НЕ slider — а 5 preset pills (0/25/50/75/100%) +
+    // 2 крупные кнопки Открыть/Закрыть half/half.
     const blocks = ids.map(eid => {
       const s = this._pvEntState(eid);
       const fname = s?.attributes?.friendly_name || eid;
       const pos = s?.attributes?.current_position;
       const posVal = typeof pos === 'number' ? pos : (s?.state === 'open' ? 100 : 0);
       const offline = !s;
+      const stateText = offline ? '—'
+        : s?.state === 'open' ? 'Открыто'
+        : s?.state === 'closed' ? 'Закрыто'
+        : s?.state === 'opening' ? 'Открывается…'
+        : s?.state === 'closing' ? 'Закрывается…'
+        : s?.state;
+      const isOpen = !offline && (s?.state === 'open' || s?.state === 'opening');
+      const isClosed = !offline && (s?.state === 'closed' || s?.state === 'closing');
+      const presets = [0, 25, 50, 75, 100];
+      const presetsHtml = presets.map(pct => `
+        <button class="pv-curtain-preset ${posVal >= pct - 12 && posVal <= pct + 12 ? 'active' : ''}"
+                data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="${pct}">${pct}%</button>
+      `).join('');
       return `
         <div class="pv-curtain-device ${offline?'off':''}">
           <div class="head">
             <ha-icon icon="mdi:curtains"></ha-icon>
             <span class="nm">${esc(fname)}</span>
-            <span class="pct">${offline ? '—' : posVal + '%'}</span>
+            <span class="pct">${offline ? '—' : posVal + '% · ' + stateText}</span>
           </div>
-          <div class="slider-wrap">
-            <div class="slider-track"></div>
-            <div class="slider-handle" style="left:${posVal}%"></div>
-          </div>
+          <div class="preset-row">${presetsHtml}</div>
           <div class="btn-row">
-            <button class="btn ${posVal <= 5 ? 'active' : ''}"
-                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="0">Закрыть</button>
-            <button class="btn ${posVal > 5 && posVal < 95 ? 'active' : ''}"
-                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="50">50%</button>
-            <button class="btn ${posVal >= 95 ? 'active' : ''}"
+            <button class="btn ${isOpen ? 'active' : ''}"
                     data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="100">Открыть</button>
+            <button class="btn ${isClosed ? 'active' : ''}"
+                    data-pv-action="curtain-set" data-entity="${esc(eid)}" data-pos="0">Закрыть</button>
           </div>
         </div>`;
     }).join('');
@@ -3867,39 +3936,74 @@ class BMSPanelEditor extends HTMLElement {
     const curStr = Math.round(curTemp);
     const target = firstSt?.attributes?.temperature ?? 22;
 
-    // Сцены — по 4 row vertical (Турбо / Комфорт / Эко / Ручной) — точно как в APK.
-    // Subtitles и temp подобраны по reference-screenshots /tmp/final_04_ac.png,
-    // /tmp/final_07_heating.png, /tmp/final_08_floor.png, /tmp/final_06_convector (как Convector).
+    // Сцены — по 4 row vertical (Турбо / Комфорт / Эко / Ручной) — 1-в-1 с APK.
+    // Subtitles per-screen (см. ClimateMoodScreen.kt) — отличаются для AC vs heating
+    // потому что физика разная (охлаждение vs нагрев).
+    //
+    // Иконки: APK использует ic_mode_cool / ic_mode_fire / ic_mode_dry / ic_mode_auto /
+    // ic_set_clock. Соответствие MDI: snowflake (cool) / fire (heat) / leaf (eco) /
+    // alpha-a-circle (комфорт=auto) / timer-outline (ручной).
     const SCENES_BY_SCREEN = {
       ac: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрое охлаждение',  t:22, mode:'cool', icon:'mdi:snowflake' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:25, mode:'cool', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',    t:28, mode:'cool', icon:'mdi:water-outline' },
-        { key:'manual',  lbl:'Ручной',  sub:'',                    t:30, mode:'cool', icon:'mdi:timer-outline' },
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрое охлаждение',    t:22, mode:'cool', icon:'mdi:snowflake' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:25, mode:'cool', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',      t:28, mode:'cool', icon:'mdi:leaf' },
       ],
       heating: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрый прогрев',     t:24, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',    t:19, mode:'heat', icon:'mdi:water-outline' },
-        { key:'manual',  lbl:'Ручной',  sub:'',                    t:18, mode:'heat', icon:'mdi:timer-outline' },
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрый прогрев',       t:23, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'никого дома',           t:18, mode:'heat', icon:'mdi:leaf' },
       ],
       floor: [
-        { key:'turbo',   lbl:'Турбо',   sub:'тёплая поверхность',  t:24, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'стяжка не остынет',   t:21, mode:'heat', icon:'mdi:water-outline' },
-        { key:'manual',  lbl:'Ручной',  sub:'',                    t:18, mode:'heat', icon:'mdi:timer-outline' },
+        { key:'turbo',   lbl:'Турбо',   sub:'тёплая поверхность',    t:24, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',    t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'стяжка не остынет',     t:21, mode:'heat', icon:'mdi:leaf' },
       ],
       convector: [
-        { key:'turbo',   lbl:'Турбо',   sub:'быстрый догрев',      t:24, mode:'heat', icon:'mdi:fire' },
-        { key:'comfort', lbl:'Комфорт', sub:'тихий режим',         t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
-        { key:'eco',     lbl:'Эко',     sub:'экономия, frost-guard', t:18, mode:'heat', icon:'mdi:water-outline' },
-        { key:'manual',  lbl:'Ручной',  sub:'',                    t:5,  mode:'heat', icon:'mdi:timer-outline' },
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрый догрев',        t:24, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'тихий режим',           t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'экономия, frost-guard', t:18, mode:'heat', icon:'mdi:leaf' },
       ],
     };
     const SCENES = SCENES_BY_SCREEN[screen] || SCENES_BY_SCREEN.ac;
-    const activeScene = !isOff ? (SCENES.find(sc =>
-      Math.abs((target || -999) - sc.t) < 0.5 && (firstSt.state === sc.mode || firstSt.state === 'auto')
-    )?.key || null) : null;
+    // Active scene detection: совпадает по target temp ±0.5° (mode не проверяем —
+    // в реальном APK active state хранится отдельно в App.state.climateActiveScenes,
+    // но preview без state так что fallback на target match).
+    const targetNum = parseFloat(target);
+    const activeScene = !isOff && !isNaN(targetNum)
+      ? (SCENES.find(sc => Math.abs(targetNum - sc.t) < 0.5)?.key || null)
+      : null;
+    // Manual active = ни одна сцена не подошла (либо OFF).
+    const manualActive = !isOff && activeScene === null;
+    const manualTarget = !isNaN(targetNum) ? Math.round(targetNum) : null;
+
+    // Smart context line под «сейчас»: «Прогрев до 25° · ≈20 мин» / «Охлаждение до 18° · ≈45 мин» /
+    // «Поддерживает 21°» (из ClimateMoodScreen.kt:240-281).
+    let contextHtml = '';
+    if (!isOff && !isNaN(targetNum)) {
+      const delta = targetNum - curTemp;
+      const absDelta = Math.abs(delta);
+      let txt;
+      let active = false;
+      if (absDelta < 0.5) {
+        txt = `Поддерживает ${Math.round(targetNum)}°`;
+      } else if (delta > 0) {
+        // Нагрев — 8 мин/град (APK ClimateMoodScreen.kt:251)
+        const mins = Math.max(1, Math.min(120, Math.round(absDelta * 8)));
+        txt = `Прогрев до ${Math.round(targetNum)}° · ≈${mins} мин`;
+        active = true;
+      } else {
+        // Охлаждение — 10 мин/град (APK :255)
+        const mins = Math.max(1, Math.min(120, Math.round(absDelta * 10)));
+        txt = `Охлаждение до ${Math.round(targetNum)}° · ≈${mins} мин`;
+        active = true;
+      }
+      contextHtml = `
+        <div class="pv-climate-context">
+          <span class="dot ${active ? 'pulse' : ''}"></span>
+          <span class="txt">${esc(txt)}</span>
+        </div>`;
+    }
 
     const scenesHtml = SCENES.map(sc => `
       <button class="pv-climate-scene ${activeScene === sc.key ? 'active' : ''} ${isOff?'disabled':''}"
@@ -3913,14 +4017,25 @@ class BMSPanelEditor extends HTMLElement {
         <div class="t">${sc.t}°</div>
       </button>
     `).join('');
+    // «Ручной» row — отдельный (APK ManualPill), показывает текущий target когда active.
+    const manualHtml = `
+      <button class="pv-climate-scene pv-climate-manual ${manualActive?'active':''} ${isOff?'disabled':''}"
+              data-pv-action="climate-manual" data-entity="${esc(ids[0])}">
+        <div class="ico"><ha-icon icon="mdi:timer-outline"></ha-icon></div>
+        <div class="txt"><div class="nm">Ручной</div></div>
+        ${manualActive && manualTarget !== null
+          ? `<div class="t">${manualTarget}°<span class="manual-dot"></span></div>`
+          : `<div class="t">›</div>`}
+      </button>`;
 
     return this._pvWrap(`
       ${this._pvHeader(meta.ru, { rightBtn: headerRight })}
       <div class="pv-climate-cur ${isOff?'disabled':''}">
         <div class="big">${curStr}<span class="deg">°</span></div>
         <div class="lbl">сейчас</div>
+        ${contextHtml}
       </div>
-      <div class="pv-climate-scenes">${scenesHtml}</div>
+      <div class="pv-climate-scenes">${scenesHtml}${manualHtml}</div>
     `, { cfg, climate: screen });
   }
 
@@ -3941,37 +4056,48 @@ class BMSPanelEditor extends HTMLElement {
       `, { cfg });
     }
 
+    // APK VentScreen.kt: маленький «Качество воздуха» (13sp grey), большой статус
+    // (28sp Light, цвет по уровню), под ним «CO₂ 850 ppm» (14sp 55% white).
     const co2Eid = cfg.entities?.co2_sensor;
     const co2State = co2Eid ? this._pvEntState(co2Eid) : null;
     const co2Val = co2State && co2State.state !== 'unavailable' && co2State.state !== 'unknown'
-      ? Math.round(parseFloat(co2State.state)) : 650;
-    const co2Cls = co2Val > 1400 ? 'poor' : co2Val > 1000 ? 'moderate' : 'good';
-    const co2Lbl = co2Val > 1400 ? 'Нужно проветрить' : co2Val > 1000 ? 'Средне' : 'Хорошо';
+      ? Math.round(parseFloat(co2State.state)) : 850;
+    // Пороги из VentScreen.kt:81-85: <800 свежий / <1200 душновато / >=1200 откройте окно
+    const co2Cls = co2Val < 800 ? 'good' : co2Val < 1200 ? 'moderate' : 'poor';
+    const co2Status = co2Val < 800 ? 'Воздух свежий' : co2Val < 1200 ? 'Душновато' : 'Откройте окно';
 
-    // 2×2 fan grid
+    // 2×2 fan grid — APK labels: Мин / Средняя / Макс / Авто (VentScreen.kt:215-224).
+    // Иконки из APK drawable: ic_mode_dry (Мин) / ic_nav_ventilation (Средняя) /
+    // ic_mode_fan (Макс) / ic_mode_auto (Авто=буква A) — соответствие MDI ниже.
     const eid = fanIds[0];
+    const preset = firstFan?.attributes?.preset_mode;
     const curPct = firstFan?.attributes?.percentage ?? (fanOn ? 50 : 0);
+    let activeSpeed;
+    if (!fanOn) activeSpeed = null;
+    else if ((preset || '').toLowerCase() === 'auto') activeSpeed = 'auto';
+    else if (curPct <= 40) activeSpeed = 'low';
+    else if (curPct <= 75) activeSpeed = 'mid';
+    else activeSpeed = 'high';
     const speeds = [
-      { pct: 0,   lbl: 'Выкл' },
-      { pct: 33,  lbl: 'Тихо' },
-      { pct: 66,  lbl: 'Средне' },
-      { pct: 100, lbl: 'Турбо' },
+      { key: 'low',  pct: 33,  lbl: 'Мин',     icon: 'mdi:water-outline' },
+      { key: 'mid',  pct: 66,  lbl: 'Средняя', icon: 'mdi:air-filter' },
+      { key: 'high', pct: 100, lbl: 'Макс',    icon: 'mdi:fan' },
+      { key: 'auto', pct: null, lbl: 'Авто',   icon: 'mdi:alpha-a-circle-outline' },
     ];
     const speedsHtml = speeds.map(s => `
-      <button class="pv-pill ${Math.abs(curPct - s.pct) < 8 ? 'active' : ''}"
-              data-pv-action="vent-speed" data-entity="${esc(eid)}" data-pct="${s.pct}">
-        <span>${esc(s.lbl)}</span>
+      <button class="pv-vent-tile ${activeSpeed === s.key ? 'active' : ''}"
+              data-pv-action="vent-speed" data-entity="${esc(eid)}"
+              data-pct="${s.pct === null ? '' : s.pct}" data-preset="${s.key === 'auto' ? 'auto' : ''}">
+        <div class="ico"><ha-icon icon="${s.icon}"></ha-icon></div>
+        <div class="lbl">${esc(s.lbl)}</div>
       </button>`).join('');
 
     return this._pvWrap(`
       ${this._pvHeader('Вентиляция', { rightBtn: headerRight })}
       <div class="pv-vent-quality">
-        <div class="label">Air quality · CO₂</div>
-        <div class="value">
-          <span class="num">${co2Val}</span>
-          <span class="unit">ppm</span>
-        </div>
-        <div class="status ${co2Cls}">${esc(co2Lbl)}</div>
+        <div class="label">Качество воздуха</div>
+        <div class="status-big ${co2Cls}">${esc(co2Status)}</div>
+        <div class="co2-line">CO₂ ${co2Val} ppm</div>
       </div>
       <div class="pv-vent-fan">
         <div class="label">Скорость</div>
@@ -4097,14 +4223,28 @@ class BMSPanelEditor extends HTMLElement {
       };
     });
 
-    // ---- Fan / ventilation speed ----
+    // ---- Fan / ventilation speed (Мин/Средняя/Макс/Авто) ----
     $$('[data-pv-action="vent-speed"]').forEach(el => {
       el.onclick = () => {
         const eid = el.dataset.entity;
+        const preset = el.dataset.preset;
+        if (preset === 'auto') {
+          this._pvSetPending(eid, 'on', { preset_mode: 'auto' });
+          this._pvCallService('fan', 'set_preset_mode', { entity_id: eid, preset_mode: 'auto' });
+          return;
+        }
         const pct = parseInt(el.dataset.pct, 10);
         this._pvSetPending(eid, pct === 0 ? 'off' : 'on', { percentage: pct });
         if (pct === 0) this._pvCallService('fan', 'turn_off', { entity_id: eid });
-        else this._pvCallService('fan', 'set_percentage', { entity_id: eid, percentage: pct });
+        else this._pvCallService('fan', 'turn_on', { entity_id: eid, percentage: pct });
+      };
+    });
+
+    // ---- Climate manual (Ручной pill) — в preview только toast, real APK
+    // открывает ManualDialog. В preview мы не имеем dialog overlay. ----
+    $$('[data-pv-action="climate-manual"]').forEach(el => {
+      el.onclick = () => {
+        this._toast('Ручной режим — настройка через APK', 'info', { duration: 1800 });
       };
     });
 
