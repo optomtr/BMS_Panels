@@ -60,7 +60,7 @@ class BMSPanelSensor(SensorEntity):
             manufacturer="BMS Smart",
             model="NS Panel Pro (4\")",
             sw_version=self._hass.data.get(DOMAIN, {}).get("addon_version"),
-            configuration_url=f"/{SIDEBAR_URL_PATH}",
+            configuration_url=f"homeassistant://{SIDEBAR_URL_PATH}",
         )
 
     async def async_added_to_hass(self) -> None:
