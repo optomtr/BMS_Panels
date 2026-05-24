@@ -56,17 +56,52 @@ SIDEBAR_TITLE = "BMS Panels"
 SIDEBAR_ICON = "mdi:tablet-dashboard"
 
 
+_CYRILLIC_TRANSLIT = str.maketrans({
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch",
+    "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+    "қ": "q", "ғ": "g", "ҳ": "h", "ў": "o",
+})
+
+
 def _slug(s: str) -> str:
     """Сгенерировать panel_id из имени.
 
-    Только ASCII! Кириллица транслитерируется в подчёркивания. Иначе
-    entity_id `sensor.bms_panel_кухня` будет невалидным.
+    Только ASCII: кириллица транслитерируется, остальные символы становятся
+    разделителями. Иначе entity_id `sensor.bms_panel_кухня` будет невалидным.
     """
-    s = re.sub(r"[^a-z0-9_-]+", "_", (s or "").lower())
+    s = (s or "").lower().translate(_CYRILLIC_TRANSLIT)
+    s = re.sub(r"[^a-z0-9_-]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_-")
+    s = s[:32].strip("_-")
     if not s or not re.match(SLUG_REGEX, s):
         return "panel"
     return s
+
+
+def _unique_panel_id(base: str, existing) -> str:
+    """Вернуть свободный panel_id на основе base: kitchen, kitchen_2, ..."""
+    base = _slug(base)
+    if base not in existing:
+        return base
+    for n in range(2, 1000):
+        suffix = f"_{n}"
+        candidate = f"{base[:32 - len(suffix)].rstrip('_-')}{suffix}"
+        if candidate not in existing:
+            return candidate
+    raise HomeAssistantError("Не удалось подобрать свободный Panel ID.")
+
+
+def _taken_panel_ids(hass: HomeAssistant) -> set[str]:
+    """Все занятые ID, включая частично сохранённые записи после старых ошибок."""
+    data = hass.data.get(DOMAIN, {})
+    return (
+        set(data.get("meta", {}))
+        | set(data.get("configs", {}))
+        | set(data.get("panels", {}))
+    )
 
 
 async def _async_load_storage(hass: HomeAssistant) -> tuple[storage.Store, dict, dict]:
@@ -237,6 +272,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
     async def add_panel(call: ServiceCall) -> None:
         raw_id = (call.data.get("panel_id") or "").strip().lower()
+        explicit_id = bool(raw_id)
         # Принимаем оба ключа — panel_name (документированный) и name (интуитивно
         # ожидаемый интегратором по аналогии с другими HA сервисами).
         panel_name = (call.data.get("panel_name") or call.data.get("name") or "").strip()
@@ -246,12 +282,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 "например «Кухня» или «Спальня»."
             )
         if not raw_id:
-            raw_id = _slug(panel_name)
+            raw_id = _unique_panel_id(panel_name, _taken_panel_ids(hass))
         if not re.match(SLUG_REGEX, raw_id):
             raise HomeAssistantError(
                 f"Panel ID «{raw_id}» невалиден. Разрешены латиница, цифры, _ и - (2–32 символа)."
             )
-        if raw_id in hass.data[DOMAIN]["meta"]:
+        if explicit_id and raw_id in _taken_panel_ids(hass):
             raise HomeAssistantError(f"Panel ID «{raw_id}» уже занят.")
 
         # КРИТИЧНО: если sensor platform не загружена через config entry —
@@ -339,12 +375,15 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         new_name = (call.data["panel_name"] or "").strip()
         if not new_name:
             raise HomeAssistantError("panel_name не может быть пустым.")
-        raw_new_id = (call.data.get("panel_id") or "").strip().lower() or _slug(new_name)
+        raw_new_id = (call.data.get("panel_id") or "").strip().lower()
+        explicit_id = bool(raw_new_id)
+        if not raw_new_id:
+            raw_new_id = _unique_panel_id(new_name, _taken_panel_ids(hass))
         copy_entities = bool(call.data.get("copy_entities", False))
 
         if src_id not in hass.data[DOMAIN]["configs"]:
             raise HomeAssistantError(f"Source panel '{src_id}' not found.")
-        if raw_new_id in hass.data[DOMAIN]["meta"]:
+        if explicit_id and raw_new_id in _taken_panel_ids(hass):
             raise HomeAssistantError(f"Panel ID «{raw_new_id}» уже занят.")
         if not re.match(SLUG_REGEX, raw_new_id):
             raise HomeAssistantError(f"Panel ID «{raw_new_id}» невалиден.")
@@ -406,7 +445,8 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         (SERVICE_RESET_CONFIG,  reset_config,  vol.Schema({vol.Required("panel_id"): cv.string})),
         (SERVICE_ADD_PANEL,     add_panel,     vol.Schema({
             vol.Optional("panel_id"):   cv.string,
-            vol.Required("panel_name"): cv.string,
+            vol.Optional("panel_name"): cv.string,
+            vol.Optional("name"):       cv.string,
         })),
         (SERVICE_REMOVE_PANEL,  remove_panel,  vol.Schema({vol.Required("panel_id"): cv.string})),
         (SERVICE_CLONE_PANEL,   clone_panel,   vol.Schema({

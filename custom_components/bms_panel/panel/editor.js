@@ -569,9 +569,16 @@ input[type=range] { width: 100%; }
 // ---------- Утилиты ----------
 
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const translit = (s) => String(s || '').toLowerCase().replace(/[а-яёқғҳў]/g, ch => ({
+  а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e',
+  ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m',
+  н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u',
+  ф:'f', х:'h', ц:'ts', ч:'ch', ш:'sh', щ:'sch',
+  ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya',
+  қ:'q', ғ:'g', ҳ:'h', ў:'o',
+}[ch] ?? ch));
 const slug = (name) =>
-  String(name || '')
-    .toLowerCase()
+  translit(name)
     .replace(/[^a-z0-9_-]+/g, '_')
     .replace(/_+/g, '_').replace(/^_|_$/g, '')
     .substring(0, 32) || 'panel';
@@ -660,6 +667,13 @@ class BMSPanelEditor extends HTMLElement {
       this._activePanelId = all[0].panel_id;
     }
     return all.find(p => p.panel_id === this._activePanelId);
+  }
+
+  _selectCreatedPanel(name, fallbackId) {
+    const created = this._allPanels()
+      .filter(p => p.panel_name === name)
+      .sort((a, b) => new Date(b.last_updated || 0) - new Date(a.last_updated || 0))[0];
+    this._activePanelId = created?.panel_id || fallbackId;
   }
 
   _workingConfig(panel) {
@@ -1622,23 +1636,28 @@ class BMSPanelEditor extends HTMLElement {
       };
       root.querySelector('#ok').onclick = () => {
         const name = nameInp.value.trim();
-        const id = idInp.value.trim().toLowerCase() || slug(name);
+        const typedId = idInp.value.trim().toLowerCase();
+        const previewId = typedId || slug(name);
         if (!name) { this._toast('Введите имя панели', 'error'); return; }
-        if (!/^[a-z0-9_-]{2,32}$/.test(id)) {
+        if (typedId && !/^[a-z0-9_-]{2,32}$/.test(typedId)) {
           this._toast('Код должен быть из латиницы, цифр, _ или - (2–32 символа)', 'error');
           return;
         }
-        this._hass.callService('bms_panel', 'add_panel', { panel_name: name, panel_id: id })
+        const payload = { panel_name: name };
+        if (typedId) payload.panel_id = typedId;
+        this._hass.callService('bms_panel', 'add_panel', payload)
           .then(() => {
             close();
-            this._activePanelId = id;
             // Persistent — это важная инструкция, не должна исчезать через 3 сек
             this._toast(
-              `Панель «${name}» создана. Теперь установите APK на планшет и в нём впишите код «${id}» в Settings → Panel ID.`,
+              `Панель «${name}» создана. Теперь установите APK на планшет и в нём впишите код из списка панелей в Settings → Panel ID.`,
               'success',
               { duration: 0 },
             );
-            setTimeout(() => this._refresh(), 400);
+            setTimeout(() => {
+              this._selectCreatedPanel(name, previewId);
+              this._refresh();
+            }, 400);
           })
           .catch(err => this._toast('Ошибка: ' + (err.message || err), 'error'));
       };
@@ -1675,18 +1694,26 @@ class BMSPanelEditor extends HTMLElement {
       };
       root.querySelector('#ok').onclick = () => {
         const name = nameInp.value.trim();
-        const id = idInp.value.trim().toLowerCase() || slug(name);
+        const typedId = idInp.value.trim().toLowerCase();
+        const previewId = typedId || slug(name);
         if (!name) { this._toast('Введите имя новой панели', 'error'); return; }
-        this._hass.callService('bms_panel', 'clone_panel', {
+        if (typedId && !/^[a-z0-9_-]{2,32}$/.test(typedId)) {
+          this._toast('Код должен быть из латиницы, цифр, _ или - (2–32 символа)', 'error');
+          return;
+        }
+        const payload = {
           source_panel_id: srcPanel.panel_id,
           panel_name: name,
-          panel_id: id,
-        })
+        };
+        if (typedId) payload.panel_id = typedId;
+        this._hass.callService('bms_panel', 'clone_panel', payload)
           .then(() => {
             close();
-            this._activePanelId = id;
             this._toast(`Панель скопирована.`, 'success');
-            setTimeout(() => this._refresh(), 400);
+            setTimeout(() => {
+              this._selectCreatedPanel(name, previewId);
+              this._refresh();
+            }, 400);
           })
           .catch(err => this._toast('Ошибка: ' + (err.message || err), 'error'));
       };
