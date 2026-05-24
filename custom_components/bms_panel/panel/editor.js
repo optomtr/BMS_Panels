@@ -19,8 +19,9 @@ const SCREEN_META = {
   light:       { icon: 'mdi:lightbulb-outline',  ru: 'Свет',         en: 'Light',       hint: 'Лампы и светильники' },
   curtain:     { icon: 'mdi:curtains',           ru: 'Шторы',        en: 'Curtain',     hint: 'Шторы, рольставни, жалюзи' },
   music:       { icon: 'mdi:music',              ru: 'Музыка',       en: 'Music',       hint: 'Колонки, медиа-плееры' },
-  ac:          { icon: 'mdi:air-conditioner',    ru: 'Кондиционер',  en: 'AC',          hint: 'Кондиционеры (cool/heat)' },
-  heating:     { icon: 'mdi:radiator',           ru: 'Радиаторы',    en: 'Heating',     hint: 'Радиаторы отопления' },
+  // Short titles — соответствуют APK Menu/header (АС / Радиатор / Тёплый пол / Конвектор)
+  ac:          { icon: 'mdi:air-conditioner',    ru: 'AC',           en: 'AC',          hint: 'Кондиционеры (cool/heat)' },
+  heating:     { icon: 'mdi:radiator',           ru: 'Радиатор',     en: 'Heating',     hint: 'Радиаторы отопления' },
   floor:       { icon: 'mdi:heating-coil',       ru: 'Тёплый пол',   en: 'Floor heat',  hint: 'Электрический/водяной тёплый пол' },
   convector:   { icon: 'mdi:radiator-disabled',  ru: 'Конвектор',    en: 'Convector',   hint: 'Конвекторы с вентилятором' },
   ventilation: { icon: 'mdi:fan',                ru: 'Вентиляция',   en: 'Ventilation', hint: 'Приточная вентиляция, CO₂' },
@@ -663,7 +664,7 @@ input[type=range] { width: 100%; }
 /* Blurred backdrop for sub-screens (same as index.html .panel::before) */
 .pv-panel::before {
   content: ''; position: absolute; inset: -30px;
-  background: var(--pv-bg-img, url('/bms_panel_static/background.png')) center/cover no-repeat;
+  background: var(--pv-bg-img, url('/bms_panel_static/background.png?v=2.2.1')) center/cover no-repeat;
   filter: blur(18px); transform: scale(1.1);
   z-index: -1;
 }
@@ -992,101 +993,71 @@ input[type=range] { width: 100%; }
 .pv-header-btn.power-on svg { stroke: #C99A55; }
 
 /* ============ CLIMATE (AC/Heating/Floor/Convector) ============ */
-.pv-climate-temp {
-  position: absolute; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: center;
-  gap: 28px; z-index: 2;
+/* APK layout: большая центральная температура → «сейчас» → 4 vertical pill-row */
+.pv-climate-cur {
+  position: absolute; top: 78px; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center;
+  z-index: 2; pointer-events: none;
 }
-.pv-climate-temp .tbtn {
-  width: 50px; height: 50px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.45);
-  background: transparent; color: #fff;
-  font-size: 26px; font-weight: 300;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-family: inherit;
+.pv-climate-cur .big {
+  font-size: 78px; font-weight: 200; line-height: 1;
+  color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
 }
-.pv-climate-temp .tbtn:active { background: rgba(255,255,255,0.15); transform: scale(0.94); }
-.pv-climate-temp .tcenter {
-  display: flex; flex-direction: column; align-items: center; min-width: 200px;
+.pv-climate-cur .big .deg {
+  vertical-align: top; font-size: 36px; font-weight: 300; margin-left: 2px;
 }
-.pv-climate-temp .tval {
-  font-weight: 200; line-height: 1; color: #fff;
-  font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+.pv-climate-cur .lbl {
+  font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 6px;
 }
-.pv-climate-temp .tval .deg { vertical-align: top; font-weight: 300; }
-.pv-climate-temp .tcur {
-  font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 10px;
-}
-/* Per-screen sizes — matches index.html exactly */
-.pv-climate.ac    .pv-climate-temp        { top: 95px; height: 150px; }
-.pv-climate.ac    .pv-climate-temp .tval  { font-size: 78px; }
-.pv-climate.ac    .pv-climate-temp .deg   { font-size: 36px; margin-left: 2px; }
-.pv-climate.heating .pv-climate-temp,
-.pv-climate.floor   .pv-climate-temp      { top: 90px; height: 220px; }
-.pv-climate.heating .pv-climate-temp .tval,
-.pv-climate.floor   .pv-climate-temp .tval{ font-size: 96px; }
-.pv-climate.heating .pv-climate-temp .deg,
-.pv-climate.floor   .pv-climate-temp .deg { font-size: 42px; margin-left: 4px; }
-.pv-climate.convector .pv-climate-temp     { top: 78px; height: 170px; }
-.pv-climate.convector .pv-climate-temp .tval { font-size: 80px; }
-.pv-climate.convector .pv-climate-temp .deg  { font-size: 36px; margin-left: 4px; }
+.pv-climate-cur.disabled { opacity: 0.45; }
 
-/* Climate scene/mode pills row */
-.pv-climate-section {
-  position: absolute; left: 22px; right: 22px; z-index: 2;
+/* 4 vertical scene rows (Турбо / Комфорт / Эко / Ручной) */
+.pv-climate-scenes {
+  position: absolute; left: 16px; right: 16px; top: 208px; bottom: 12px;
+  display: flex; flex-direction: column; gap: 6px; z-index: 2;
 }
-.pv-climate-section .label {
-  font-size: 12px; color: rgba(255,255,255,0.55);
-  letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;
+.pv-climate-scene {
+  flex: 1; min-height: 50px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer; font-family: inherit;
+  text-align: left;
 }
-.pv-climate-section .pills {
-  display: flex; gap: 8px;
+.pv-climate-scene:active { background: rgba(255,255,255,0.10); transform: scale(0.985); }
+.pv-climate-scene.active {
+  background: rgba(201,154,85,0.18);
+  border-color: rgba(201,154,85,0.85);
+  color: #fff;
 }
-.pv-pill {
-  flex: 1; height: 40px;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 6px; background: transparent;
-  color: rgba(255,255,255,0.78);
-  font-size: 14px; font-weight: 400;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  gap: 6px; font-family: inherit;
+.pv-climate-scene.disabled { opacity: 0.42; cursor: not-allowed; }
+.pv-climate-scene .ico {
+  flex-shrink: 0; width: 28px; display: flex; align-items: center; justify-content: center;
 }
-.pv-pill:active { background: rgba(255,255,255,0.1); }
-.pv-pill.active {
-  background: rgba(255,255,255,0.12);
-  border-color: #fff; border-width: 1.5px; color: #fff;
+.pv-climate-scene .ico ha-icon {
+  --mdc-icon-size: 22px; color: rgba(255,255,255,0.85); pointer-events: none;
 }
-.pv-pill ha-icon {
-  --mdc-icon-size: 16px; pointer-events: none;
-  color: currentColor;
+.pv-climate-scene.active .ico ha-icon { color: #C99A55; }
+.pv-climate-scene .txt {
+  flex: 1; display: flex; flex-direction: column; gap: 1px; pointer-events: none;
+  min-width: 0;
 }
-.pv-pill > span { pointer-events: none; }
-/* Section positions per screen */
-.pv-climate.ac .pv-climate-section.modes { top: 268px; }
-.pv-climate.ac .pv-climate-section.fan   { top: 368px; }
-.pv-climate.heating  .pv-climate-section.mode,
-.pv-climate.floor    .pv-climate-section.mode { bottom: 124px; }
-.pv-climate.convector .pv-climate-section.mode { bottom: 124px; }
-.pv-climate.convector .pv-climate-section.fan  { bottom: 28px; }
-
-/* Climate device list (when multiple binds) */
-.pv-climate-list {
-  position: absolute; left: 22px; right: 22px; bottom: 28px;
-  display: flex; flex-direction: column; gap: 4px; z-index: 2;
-  max-height: 96px; overflow-y: auto;
+.pv-climate-scene .txt .nm {
+  font-size: 15px; font-weight: 500; color: #fff; line-height: 1.15;
 }
-.pv-climate-list::-webkit-scrollbar { width: 0; }
-.pv-climate-list .row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: rgba(255,255,255,0.7);
-  padding: 2px 4px;
+.pv-climate-scene .txt .sub {
+  font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.15;
 }
-.pv-climate-list .row .nm { flex: 1; }
-.pv-climate-list .row .st { font-variant-numeric: tabular-nums; }
-.pv-climate-list .row.off { opacity: 0.5; }
+.pv-climate-scene .t {
+  font-size: 18px; font-weight: 300; color: rgba(255,255,255,0.85);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+  flex-shrink: 0;
+}
+.pv-climate-scene.active .t { color: #C99A55; }
 
 /* ============ VENTILATION ============ */
 .pv-vent-quality {
@@ -3524,7 +3495,9 @@ class BMSPanelEditor extends HTMLElement {
   _pvWrap(inner, opts = {}) {
     const cfg = opts.cfg || {};
     const customBg = (cfg.background_image_url || '').trim();
-    const bgUrl = customBg || '/bms_panel_static/background.png';
+    // ВАЖНО: для built-in PNG добавляем cache-bust ?v=2.2.1 — без этого
+    // браузер может закэшировать 404 от старой инсталляции и preview будет чёрный.
+    const bgUrl = customBg || '/bms_panel_static/background.png?v=2.2.1';
     const homeDim = ((cfg.background_dim ?? 30) / 100).toFixed(2);
     const cls = opts.home ? 'pv-home' : 'pv-sub';
     const climateCls = opts.climate ? `pv-climate ${esc(opts.climate)}` : '';
@@ -3606,14 +3579,22 @@ class BMSPanelEditor extends HTMLElement {
     const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
     const dateStr = `${weekdays[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
 
-    // Comfort message — соответствует APK
-    let comfortMsg = 'Все системы в норме';
+    // Comfort message — 1-в-1 с APK HomeScreen.kt buildComfortMessage()
+    // tempState: <18 прохладно / <22 комфортно / <26 тепло / иначе жарко
+    // humidState: <30 сухо / <60 влажность в норме / иначе влажно
+    // Формат: «Дома ${tempState} · ${humidState}»
+    let comfortMsg = '';
     const tNum = parseFloat(tempVal);
-    if (!isNaN(tNum)) {
-      if (tNum < 19) comfortMsg = 'Дома прохладно';
-      else if (tNum > 27) comfortMsg = 'Дома жарко';
-      else comfortMsg = 'Дома тепло, влажность в норме';
-    }
+    const hNum = parseFloat(humVal);
+    const tempState = !isNaN(tNum)
+      ? (tNum < 18 ? 'прохладно' : tNum < 22 ? 'комфортно' : tNum < 26 ? 'тепло' : 'жарко')
+      : null;
+    const humState = !isNaN(hNum)
+      ? (hNum < 30 ? 'сухо' : hNum < 60 ? 'влажность в норме' : 'влажно')
+      : null;
+    if (tempState && humState) comfortMsg = `Дома ${tempState} · ${humState}`;
+    else if (tempState) comfortMsg = `Дома ${tempState}`;
+    else if (humState) comfortMsg = humState.charAt(0).toUpperCase() + humState.slice(1);
 
     const nav = (cfg.home_nav || []).slice(0, 5);
     const navHtml = nav.map(key => {
@@ -3845,8 +3826,9 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   // ============ CLIMATE (ac/heating/floor/convector) ============
-  // 1-в-1 с index.html: большая температура цифрой по центру, ± кнопки слева/справа,
-  // под ними секции Mode / Scenes (3 сцены) / Fan (для AC и Convector).
+  // 1-в-1 с APK: большая центральная температура «23°» / «сейчас»,
+  // затем 4 vertical pill-row сценарии (Турбо / Комфорт / Эко / Ручной).
+  // Каждый row = icon слева + название + сабтайтл + target temp справа.
   _pvClimate(cfg, screen) {
     const bindKeyMap = { ac: 'acs', heating: 'heatings', floor: 'floors', convector: 'convectors' };
     const tempKeyMap = {
@@ -3870,7 +3852,8 @@ class BMSPanelEditor extends HTMLElement {
       `, { cfg, climate: screen });
     }
 
-    // Target/current temp (берём с первого entity или из current_temp_sensor)
+    // Current temp (для большого «23°» по центру). Берём из current_temp_sensor
+    // или из attributes.current_temperature первого климата.
     const tempEid = cfg.entities?.[tempKeyMap[screen]];
     let curTemp = null;
     if (tempEid) {
@@ -3878,80 +3861,66 @@ class BMSPanelEditor extends HTMLElement {
       if (ts && ts.state !== 'unavailable' && ts.state !== 'unknown') curTemp = parseFloat(ts.state);
     }
     if (curTemp === null && firstSt?.attributes?.current_temperature !== undefined) {
-      curTemp = firstSt.attributes.current_temperature;
+      curTemp = parseFloat(firstSt.attributes.current_temperature);
     }
+    if (curTemp === null || isNaN(curTemp)) curTemp = 23;
+    const curStr = Math.round(curTemp);
     const target = firstSt?.attributes?.temperature ?? 22;
-    const targetStr = Math.round(target);
 
-    // Сцены — 3 для climate (без четвёртой "Manual" — Mirabror фиксировал)
-    const SCENES = screen === 'ac'
-      ? [{ key:'turbo',   lbl:'Турбо',   t:18, mode:'cool', icon:'mdi:snowflake' },
-         { key:'comfort', lbl:'Комфорт', t:22, mode:'cool', icon:'mdi:sofa-outline' },
-         { key:'eco',     lbl:'Эко',     t:25, mode:'cool', icon:'mdi:leaf' }]
-      : [{ key:'turbo',   lbl:'Турбо',   t:24, mode:'heat', icon:'mdi:fire' },
-         { key:'comfort', lbl:'Комфорт', t:22, mode:'heat', icon:'mdi:sofa-outline' },
-         { key:'eco',     lbl:'Эко',     t:19, mode:'heat', icon:'mdi:leaf' }];
-    const activeScene = !isOff ? SCENES.find(sc =>
+    // Сцены — по 4 row vertical (Турбо / Комфорт / Эко / Ручной) — точно как в APK.
+    // Subtitles и temp подобраны по reference-screenshots /tmp/final_04_ac.png,
+    // /tmp/final_07_heating.png, /tmp/final_08_floor.png, /tmp/final_06_convector (как Convector).
+    const SCENES_BY_SCREEN = {
+      ac: [
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрое охлаждение',  t:22, mode:'cool', icon:'mdi:snowflake' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:25, mode:'cool', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',    t:28, mode:'cool', icon:'mdi:water-outline' },
+        { key:'manual',  lbl:'Ручной',  sub:'',                    t:30, mode:'cool', icon:'mdi:timer-outline' },
+      ],
+      heating: [
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрый прогрев',     t:24, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'экономия энергии',    t:19, mode:'heat', icon:'mdi:water-outline' },
+        { key:'manual',  lbl:'Ручной',  sub:'',                    t:18, mode:'heat', icon:'mdi:timer-outline' },
+      ],
+      floor: [
+        { key:'turbo',   lbl:'Турбо',   sub:'тёплая поверхность',  t:24, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'повседневный режим',  t:22, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'стяжка не остынет',   t:21, mode:'heat', icon:'mdi:water-outline' },
+        { key:'manual',  lbl:'Ручной',  sub:'',                    t:18, mode:'heat', icon:'mdi:timer-outline' },
+      ],
+      convector: [
+        { key:'turbo',   lbl:'Турбо',   sub:'быстрый догрев',      t:24, mode:'heat', icon:'mdi:fire' },
+        { key:'comfort', lbl:'Комфорт', sub:'тихий режим',         t:21, mode:'heat', icon:'mdi:alpha-a-circle-outline' },
+        { key:'eco',     lbl:'Эко',     sub:'экономия, frost-guard', t:18, mode:'heat', icon:'mdi:water-outline' },
+        { key:'manual',  lbl:'Ручной',  sub:'',                    t:5,  mode:'heat', icon:'mdi:timer-outline' },
+      ],
+    };
+    const SCENES = SCENES_BY_SCREEN[screen] || SCENES_BY_SCREEN.ac;
+    const activeScene = !isOff ? (SCENES.find(sc =>
       Math.abs((target || -999) - sc.t) < 0.5 && (firstSt.state === sc.mode || firstSt.state === 'auto')
-    )?.key : null;
+    )?.key || null) : null;
 
-    // Fan speeds — только AC и Convector
-    const FAN_SPEEDS = ['auto', 'low', 'medium', 'high'];
-    const curFan = firstSt?.attributes?.fan_mode || 'auto';
-    const fanHtml = (screen === 'ac' || screen === 'convector') ? `
-      <div class="pv-climate-section fan">
-        <div class="label">${screen === 'ac' ? 'Fan speed' : 'Скорость вентилятора'}</div>
-        <div class="pills">
-          ${FAN_SPEEDS.map(f => `
-            <button class="pv-pill ${curFan === f ? 'active' : ''} ${isOff?'disabled':''}"
-                    data-pv-action="climate-fan" data-entity="${esc(ids[0])}" data-fan="${f}">
-              <span>${f === 'auto' ? 'Auto' : f === 'low' ? 'Low' : f === 'medium' ? 'Med' : 'High'}</span>
-            </button>
-          `).join('')}
+    const scenesHtml = SCENES.map(sc => `
+      <button class="pv-climate-scene ${activeScene === sc.key ? 'active' : ''} ${isOff?'disabled':''}"
+              data-pv-action="climate-scene" data-entity="${esc(ids[0])}"
+              data-temp="${sc.t}" data-mode="${sc.mode}">
+        <div class="ico"><ha-icon icon="${sc.icon}"></ha-icon></div>
+        <div class="txt">
+          <div class="nm">${esc(sc.lbl)}</div>
+          ${sc.sub ? `<div class="sub">${esc(sc.sub)}</div>` : ''}
         </div>
-      </div>` : '';
-
-    const isAC = screen === 'ac';
-    const modesLabel = isAC ? 'Mode' : 'Сцена';
-    const scenesSectionCls = isAC ? 'modes' : 'mode';
-
-    // Список дополнительных entities (если ids.length > 1) — выводим компактно
-    const extraList = ids.length > 1 ? `
-      <div class="pv-climate-list">
-        ${ids.slice(1).map(eid => {
-          const s = this._pvEntState(eid);
-          const off = !s || s.state === 'off' || s.state === 'unavailable';
-          return `<div class="row ${off?'off':''}">
-            <span class="nm">${esc(s?.attributes?.friendly_name || eid)}</span>
-            <span class="st">${off ? 'выкл' : (s.attributes.temperature ?? '?') + '°'}</span>
-          </div>`;
-        }).join('')}
-      </div>` : '';
+        <div class="t">${sc.t}°</div>
+      </button>
+    `).join('');
 
     return this._pvWrap(`
       ${this._pvHeader(meta.ru, { rightBtn: headerRight })}
-      <div class="pv-climate-temp ${isOff?'disabled':''}">
-        <button class="tbtn" data-pv-action="climate-temp" data-entity="${esc(ids[0])}" data-delta="-1">−</button>
-        <div class="tcenter">
-          <div class="tval">${targetStr}<span class="deg">°C</span></div>
-          <div class="tcur">Current: ${curTemp !== null ? curTemp.toFixed(1) : '—'}°C</div>
-        </div>
-        <button class="tbtn" data-pv-action="climate-temp" data-entity="${esc(ids[0])}" data-delta="1">+</button>
+      <div class="pv-climate-cur ${isOff?'disabled':''}">
+        <div class="big">${curStr}<span class="deg">°</span></div>
+        <div class="lbl">сейчас</div>
       </div>
-      <div class="pv-climate-section ${scenesSectionCls}">
-        <div class="label">${modesLabel}</div>
-        <div class="pills">
-          ${SCENES.map(sc => `
-            <button class="pv-pill ${activeScene === sc.key ? 'active' : ''} ${isOff?'disabled':''}"
-                    data-pv-action="climate-scene" data-entity="${esc(ids[0])}"
-                    data-temp="${sc.t}" data-mode="${sc.mode}">
-              <ha-icon icon="${sc.icon}"></ha-icon><span>${esc(sc.lbl)}</span>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-      ${fanHtml}
-      ${extraList}
+      <div class="pv-climate-scenes">${scenesHtml}</div>
     `, { cfg, climate: screen });
   }
 
