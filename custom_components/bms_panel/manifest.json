@@ -1,14 +1,22 @@
 {
   "domain": "bms_panel",
   "name": "BMS Smart Panel",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "documentation": "https://github.com/optomtr/BMS_Panels",
   "issue_tracker": "https://github.com/optomtr/BMS_Panels/issues",
-  "codeowners": ["@optomtr"],
+  "codeowners": [
+    "@optomtr"
+  ],
   "config_flow": true,
-  "dependencies": ["http", "panel_custom", "sensor"],
+  "dependencies": [
+    "http",
+    "panel_custom",
+    "sensor"
+  ],
   "requirements": [],
   "iot_class": "local_push",
   "integration_type": "hub",
-  "loggers": ["custom_components.bms_panel"]
+  "loggers": [
+    "custom_components.bms_panel"
+  ]
 }

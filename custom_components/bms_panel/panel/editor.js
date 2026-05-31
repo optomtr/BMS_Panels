@@ -27,7 +27,10 @@ const SCREEN_META = {
   ventilation: { icon: 'mdi:fan',                ru: 'Вентиляция',   en: 'Ventilation', hint: 'Приточная вентиляция, CO₂' },
 };
 
-const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','ventilation'];
+// Все 9 разделов доступны для нижних иконок (1-в-1 с APK NAV_DEFS).
+// Раньше отсутствовали floor/convector → их нельзя было выбрать, конфигуратор
+// заменял их на 'menu'.
+const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
 
 // Группы binding'ов для UI вкладки «Устройства».
 // Каждая группа = карточка с заголовком, иконкой и набором ключей.
@@ -1599,7 +1602,9 @@ class BMSPanelEditor extends HTMLElement {
       <div class="layout">
         <aside class="sidebar" id="sidebar"></aside>
         <main class="content" id="content"></main>
-        <aside class="preview-pane ${this._previewExpanded ? 'expanded' : 'collapsed'}" id="preview-pane"></aside>
+        <!-- preview-pane убрана по запросу владельца — редактор на всю ширину.
+             Методы _renderPreviewPane/_softRefreshPreview остаются null-safe
+             (early-return когда #preview-pane отсутствует). -->
       </div>
       <div id="modal-root"></div>
       <div id="toast-root"></div>
@@ -1923,11 +1928,6 @@ class BMSPanelEditor extends HTMLElement {
     content.innerHTML = `
       <div class="tabs">
         ${tabsHtml}
-        <div style="flex:1;"></div>
-        <div class="tab" id="btn-toggle-preview" title="Показать / скрыть превью">
-          <ha-icon icon="mdi:cellphone-screenshot"></ha-icon>
-          <span>Превью</span>
-        </div>
       </div>
       <div class="tab-content">${tabContentHtml}</div>
       <div class="bottom-bar">
@@ -2301,11 +2301,11 @@ class BMSPanelEditor extends HTMLElement {
         const groupClass = groupIssues.some(i => i.severity === SEV_ERROR) ? 'has-error'
           : groupIssues.some(i => i.severity === SEV_WARN) ? 'has-warn' : '';
 
-        // Для климат-экранов (ac/heating/floor/convector) добавляем
-        // секцию редактирования пресетов сцен — Турбо/Комфорт/Эко.
-        const climatePresetsHtml = CLIMATE_PRESET_SCREEN_META[group.screen]
-          ? this._renderClimatePresets(group.screen, cfg)
-          : '';
+        // Climate-пресеты (Турбо/Комфорт/Эко) скрыты — APK больше не показывает
+        // сцены на климат-экранах (только прямой ручной режим). Редактор не нужен.
+        // Методы _renderClimatePresets/_effectiveClimatePresets оставлены как
+        // dead-code на случай возврата фичи.
+        const climatePresetsHtml = '';
 
         return `
           <div class="bind-group ${groupClass}">
