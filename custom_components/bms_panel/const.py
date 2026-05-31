@@ -23,7 +23,10 @@ CONFIG_SCHEMA_VERSION = 3  # +climate_presets (v2.3.0)
 SCREEN_KEYS = ["light", "curtain", "music", "ac", "heating", "floor", "convector", "ventilation"]
 
 # ---- Иконки нижнего ряда главного экрана ----
-HOME_NAV_OPTIONS = ["light", "curtain", "menu", "music", "ac", "heating", "ventilation"]
+# Все 9 разделов (1-в-1 с APK NAV_DEFS и editor.js HOME_NAV_OPTIONS).
+# Раньше отсутствовали floor/convector → voluptuous-схема (vol.In) отвергала их
+# при сохранении и заменяла на default ('menu').
+HOME_NAV_OPTIONS = ["light", "curtain", "menu", "music", "ac", "heating", "floor", "convector", "ventilation"]
 HOME_NAV_REQUIRED_LEN = 5
 
 # ---- Ключи привязок — Android pinnedOne/pinnedMany ----

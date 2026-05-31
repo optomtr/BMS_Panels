@@ -18,8 +18,10 @@ export const SEV_INFO  = 'info';
 
 const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 
-// ID нижнего ряда главного экрана. Должно совпадать с HOME_NAV_OPTIONS в const.py.
-const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','ventilation'];
+// ID нижнего ряда главного экрана. Должно совпадать с HOME_NAV_OPTIONS в const.py
+// и editor.js (все 9 разделов). Раньше было 7 → клиент-валидатор флагал
+// floor/convector как «неизвестно Android-приложению».
+const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
 const HOME_NAV_REQUIRED_LEN = 5;
 
 // Ключ binding'а → метаданные. Должно совпадать с BIND_KEYS в const.py.
