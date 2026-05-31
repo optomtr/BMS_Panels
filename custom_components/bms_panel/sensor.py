@@ -58,7 +58,7 @@ class BMSPanelSensor(SensorEntity):
             identifiers={(DOMAIN, panel_id)},
             name=f"BMS Panel — {panel_name}",
             manufacturer="BMS Smart",
-            model="NS Panel Pro (4\")",
+            model="BMS Smart Panel",
             sw_version=self._hass.data.get(DOMAIN, {}).get("addon_version"),
             configuration_url=f"homeassistant://{SIDEBAR_URL_PATH}",
         )

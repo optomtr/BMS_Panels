@@ -24,6 +24,6 @@ class BMSPanelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             description_placeholders={
                 "info": "Управление настенными BMS-панелями. После установки в сайдбаре HA "
-                        "появится пункт 'BMS Panels' — там добавляйте панели и настраивайте их."
+                        "появится пункт 'BMS Smart Panel' — там добавляйте панели и настраивайте их."
             },
         )

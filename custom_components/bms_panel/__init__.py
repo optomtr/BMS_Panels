@@ -53,7 +53,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-SIDEBAR_TITLE = "BMS Panels"
+SIDEBAR_TITLE = "BMS Smart Panel"
 SIDEBAR_ICON = "mdi:tablet-dashboard"
 
 

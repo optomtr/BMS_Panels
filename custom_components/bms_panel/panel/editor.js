@@ -4,7 +4,7 @@
  * Web Component <bms-panel-editor>. hass инжектится автоматически.
  *
  * Архитектура:
- *   - Шапка: BMS Panels | search | help | Save (sticky, shows ⛔ N / ⚠ M)
+ *   - Шапка: BMS Smart Panel | search | help | Save (sticky, shows ⛔ N / ⚠ M)
  *   - Sidebar: список панелей со статусом (✓ / ⚠ N / ⛔ N), кнопка «Добавить»
  *   - Content: 4 таба для активной панели — Обзор / Экраны / Устройства / Главный экран
  *   - Bottom action bar — Save / Reset / Delete (destructive отделено)
@@ -14,6 +14,20 @@
 import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js';
 
 // ---------- Метаданные экранов ----------
+
+// Знак BMS Smart Panel для шапки конфигуратора — дом-в-круге (адаптация
+// основного лого под Smart Panel). currentColor → наследует цвет хедера.
+const BMS_LOGO_MARK = `
+<svg viewBox="0 0 48 48" fill="none" width="30" height="30" aria-hidden="true">
+  <circle cx="24" cy="24" r="20.3" stroke="currentColor" stroke-width="2.8"/>
+  <path d="M11.5 26.2 L24 14 L36.5 26.2" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17.6 21.4 V13.6 M14.3 16.9 L17.6 13.6 L20.9 16.9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 26 V36.4 H33 V26" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="19.1" y="28.6" width="3.4" height="3.4" rx="0.9" fill="currentColor"/>
+  <rect x="25.5" y="28.6" width="3.4" height="3.4" rx="0.9" fill="currentColor"/>
+  <rect x="19.1" y="32.9" width="3.4" height="2.6" rx="0.8" fill="currentColor"/>
+  <rect x="25.5" y="32.9" width="3.4" height="2.6" rx="0.8" fill="currentColor"/>
+</svg>`;
 
 const SCREEN_META = {
   light:       { icon: 'mdi:lightbulb-outline',  ru: 'Свет',         en: 'Light',       hint: 'Лампы и светильники' },
@@ -175,7 +189,9 @@ const STYLES = `
   position: sticky; top: 0; z-index: 20;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.toolbar-title { font-size: 18px; font-weight: 500; flex: 1; }
+.toolbar-title { font-size: 18px; font-weight: 600; flex: 1; letter-spacing: 0.2px; }
+.brand-mark { display: inline-flex; align-items: center; opacity: 0.97; }
+.brand-mark svg { display: block; }
 .toolbar .icon-btn {
   width: 40px; height: 40px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1592,7 +1608,8 @@ class BMSPanelEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${STYLES}</style>
       <div class="toolbar">
-        <div class="toolbar-title">BMS Panels</div>
+        <span class="brand-mark" aria-hidden="true">${BMS_LOGO_MARK}</span>
+        <div class="toolbar-title">BMS Smart Panel</div>
         <span id="save-counts"></span>
         <span id="save-label" style="font-size: 13px; opacity: 0.85;">Сохранено</span>
         <button class="icon-btn" id="btn-help" title="Помощь">

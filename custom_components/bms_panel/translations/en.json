@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "BMS Smart Panel",
-        "description": "Manage wall-mounted BMS panels from Home Assistant. After installation a 'BMS Panels' item appears in the HA sidebar — add panels and configure their screens and bindings there."
+        "description": "Manage wall-mounted BMS panels from Home Assistant. After installation a 'BMS Smart Panel' item appears in the HA sidebar — add panels and configure their screens and bindings there."
       }
     },
     "abort": {
