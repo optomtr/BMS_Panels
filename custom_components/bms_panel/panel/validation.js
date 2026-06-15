@@ -22,7 +22,10 @@ const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 // и editor.js (все 9 разделов). Раньше было 7 → клиент-валидатор флагал
 // floor/convector как «неизвестно Android-приложению».
 const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
-const HOME_NAV_REQUIRED_LEN = 5;
+// От 1 до 5 иконок. Раньше требовалось ровно 5 → лишние слоты заполнялись «menu»
+// и на панели висели кнопки «Ещё». Теперь интегратор кладёт сколько нужно.
+const HOME_NAV_MIN_LEN = 1;
+const HOME_NAV_MAX_LEN = 5;
 
 // Ключ binding'а → метаданные. Должно совпадать с BIND_KEYS в const.py.
 export const BIND_KEYS = {
@@ -142,10 +145,10 @@ export function validate(cfg, panelId, allPanels, hassStates) {
 
   // home_nav
   const nav = cfg.home_nav || [];
-  if (nav.length !== HOME_NAV_REQUIRED_LEN) {
+  if (nav.length < HOME_NAV_MIN_LEN || nav.length > HOME_NAV_MAX_LEN) {
     out.push(makeIssue('V19', SEV_ERROR,
-      `В нижнем ряду главного экрана должно быть ровно ${HOME_NAV_REQUIRED_LEN} иконок (сейчас: ${nav.length}).`,
-      '', { type: 'card', key: 'home_nav' }));
+      `В нижнем ряду главного экрана может быть от ${HOME_NAV_MIN_LEN} до ${HOME_NAV_MAX_LEN} иконок (сейчас: ${nav.length}).`,
+      'Добавьте или удалите иконки.', { type: 'card', key: 'home_nav' }));
   }
   nav.forEach((item, idx) => {
     if (!HOME_NAV_OPTIONS.includes(item)) {

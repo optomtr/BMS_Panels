@@ -17,8 +17,9 @@ from .const import (
     BIND_KEYS,
     CUSTOM_CARD_ACTION_TYPES,
     CUSTOM_CARD_MAX,
+    HOME_NAV_MAX_LEN,
+    HOME_NAV_MIN_LEN,
     HOME_NAV_OPTIONS,
-    HOME_NAV_REQUIRED_LEN,
     LANGUAGES,
     SCREEN_KEYS,
     SCREEN_TIMEOUT_OPTIONS,
@@ -197,11 +198,11 @@ def validate(
 
     # home_nav
     nav = cfg.get("home_nav") or []
-    if len(nav) != HOME_NAV_REQUIRED_LEN:
+    if not (HOME_NAV_MIN_LEN <= len(nav) <= HOME_NAV_MAX_LEN):
         issues.append(Issue(
             "V19", SEV_ERROR,
-            f"В нижнем ряду главного экрана должно быть ровно {HOME_NAV_REQUIRED_LEN} иконок (сейчас: {len(nav)}).",
-            "",
+            f"В нижнем ряду главного экрана может быть от {HOME_NAV_MIN_LEN} до {HOME_NAV_MAX_LEN} иконок (сейчас: {len(nav)}).",
+            "Добавьте или удалите иконки.",
             {"type": "card", "key": "home_nav"},
         ))
     for idx, item in enumerate(nav):

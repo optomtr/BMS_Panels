@@ -11,7 +11,10 @@
  *   - Validation: validation.js → top-banner + inline + bind-card border
  */
 
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js';
+// ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
+// validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
+// но относительный import тянет старый файл из кэша).
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.6.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -45,6 +48,9 @@ const SCREEN_META = {
 // Раньше отсутствовали floor/convector → их нельзя было выбрать, конфигуратор
 // заменял их на 'menu'.
 const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
+// От 1 до 5 иконок (синхронно с const.py HOME_NAV_MIN_LEN/MAX_LEN и validation.js).
+const HOME_NAV_MIN_LEN = 1;
+const HOME_NAV_MAX_LEN = 5;
 
 // Группы binding'ов для UI вкладки «Устройства».
 // Каждая группа = карточка с заголовком, иконкой и набором ключей.
@@ -756,6 +762,7 @@ input[type=range] { width: 100%; }
   margin-top: 8px;
 }
 .home-nav-slot {
+  position: relative;
   background: var(--secondary-background-color);
   border: 1px solid var(--divider-color);
   border-radius: var(--bms-radius);
@@ -771,6 +778,27 @@ input[type=range] { width: 100%; }
   text-align: center;
   text-align-last: center;
 }
+.home-nav-remove {
+  position: absolute; top: -8px; right: -8px;
+  width: 22px; height: 22px; line-height: 18px;
+  border-radius: 50%; padding: 0;
+  border: 1px solid var(--divider-color);
+  background: var(--card-background-color, var(--secondary-background-color));
+  color: var(--secondary-text-color);
+  font-size: 13px; cursor: pointer;
+}
+.home-nav-remove:hover:not([disabled]) { border-color: var(--bms-error); color: var(--bms-error); }
+.home-nav-remove[disabled] { opacity: 0.3; cursor: not-allowed; }
+.home-nav-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 12px; padding: 8px 14px;
+  border: 1px dashed var(--divider-color); border-radius: 8px;
+  background: transparent; color: var(--primary-text-color);
+  font-size: 13px; cursor: pointer;
+}
+.home-nav-add ha-icon { --mdc-icon-size: 18px; }
+.home-nav-add:hover:not([disabled]) { border-color: var(--primary-color); color: var(--primary-color); }
+.home-nav-add[disabled] { opacity: 0.4; cursor: not-allowed; }
 
 /* ---- Buttons ---- */
 .btn {
@@ -2174,14 +2202,17 @@ class BMSPanelEditor extends HTMLElement {
       <div class="card">
         <h3 class="card-title">Нижние иконки главного экрана</h3>
         <div class="card-sub">
-          Эти 5 иконок показываются на главном экране всегда. <b>menu</b> открывает список остальных экранов — рекомендуется оставить.
-          Слоты которые не нужны заполните «menu».
+          Иконки нижнего ряда главного экрана — можно поставить от 1 до 5.
+          <b>menu</b> открывает список остальных экранов — рекомендуется оставить.
+          Лишние слоты удаляйте кнопкой ✕ (раньше их приходилось заполнять «menu», и на панели висели кнопки «Ещё»).
         </div>
         <div class="home-nav-grid">
           ${cfg.home_nav.map((id, i) => {
             const itemIssue = issues.find(it => it.anchor.type === 'home_nav_item' && it.anchor.index === i);
             return `
               <div class="home-nav-slot ${itemIssue ? 'has-error' : ''}">
+                <button class="home-nav-remove" data-idx="${i}" title="Удалить иконку"
+                  ${cfg.home_nav.length <= HOME_NAV_MIN_LEN ? 'disabled' : ''}>✕</button>
                 <div class="num">№ ${i+1}</div>
                 <select class="home-nav-select" data-idx="${i}">
                   ${HOME_NAV_OPTIONS.map(o => `<option value="${o}" ${o===id?'selected':''}>${o === 'menu' ? '☰ Меню' : (SCREEN_META[o]?.ru || o)}</option>`).join('')}
@@ -2190,6 +2221,10 @@ class BMSPanelEditor extends HTMLElement {
             `;
           }).join('')}
         </div>
+        <button class="home-nav-add" id="btn-add-home-nav"
+          ${cfg.home_nav.length >= HOME_NAV_MAX_LEN ? 'disabled' : ''}>
+          <ha-icon icon="mdi:plus"></ha-icon> Добавить иконку
+        </button>
         ${issues.filter(i => i.anchor.type === 'home_nav_item' || (i.anchor.type === 'card' && i.anchor.key === 'home_nav'))
           .map(i => `
             <div class="inline-issue ${i.severity}" style="margin-top:12px;">
@@ -2873,8 +2908,28 @@ class BMSPanelEditor extends HTMLElement {
       sel.onchange = () => {
         cfg.home_nav[parseInt(sel.dataset.idx)] = sel.value;
         this._markDirty();
+        this._softRefreshPreview();
       };
     });
+    // Удалить иконку (минимум 1 слот).
+    $$('.home-nav-remove').forEach(btn => {
+      btn.onclick = () => {
+        if ((cfg.home_nav || []).length <= HOME_NAV_MIN_LEN) return;
+        cfg.home_nav.splice(parseInt(btn.dataset.idx), 1);
+        this._markDirty();
+        this._renderContent();
+        this._softRefreshPreview();
+      };
+    });
+    // Добавить иконку (максимум 5). По умолчанию «menu».
+    const btnAddHomeNav = $('#btn-add-home-nav');
+    if (btnAddHomeNav) btnAddHomeNav.onclick = () => {
+      if ((cfg.home_nav || []).length >= HOME_NAV_MAX_LEN) return;
+      cfg.home_nav.push('menu');
+      this._markDirty();
+      this._renderContent();
+      this._softRefreshPreview();
+    };
 
     // ---- Devices: single selects ----
     $$('.entity-select').forEach(sel => {

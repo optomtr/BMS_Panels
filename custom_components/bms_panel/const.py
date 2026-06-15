@@ -27,7 +27,11 @@ SCREEN_KEYS = ["light", "curtain", "music", "ac", "heating", "floor", "convector
 # Раньше отсутствовали floor/convector → voluptuous-схема (vol.In) отвергала их
 # при сохранении и заменяла на default ('menu').
 HOME_NAV_OPTIONS = ["light", "curtain", "menu", "music", "ac", "heating", "floor", "convector", "ventilation"]
-HOME_NAV_REQUIRED_LEN = 5
+# Можно поставить от 1 до 5 иконок (APK рендерит ровно столько, сколько задано).
+# Раньше жёстко требовалось 5 → лишние слоты заполнялись «menu» и на панели
+# торчали кнопки «Ещё», даже когда добавлять было нечего.
+HOME_NAV_MIN_LEN = 1
+HOME_NAV_MAX_LEN = 5
 
 # ---- Ключи привязок — Android pinnedOne/pinnedMany ----
 # multi=True → массив entity_id, multi=False → один entity_id или null.
@@ -144,9 +148,10 @@ DEFAULT_CONFIG = {
         "convector":   {"enabled": False, "order": 7, "label": "Convector"},
         "ventilation": {"enabled": False, "order": 8, "label": "Ventilation"},
     },
-    # home_nav по умолчанию: только light (включен) + menu. Остальные слоты —
-    # menu заполнители (4 «menu» лучше чем 4 ссылки на выключенные экраны).
-    "home_nav": ["light", "menu", "menu", "menu", "menu"],
+    # home_nav по умолчанию: light (включён) + menu для доступа к остальным экранам.
+    # Интегратор добавляет ещё иконки (до 5) под конкретный объект — лишние слоты
+    # больше НЕ нужны (раньше дополняли «menu», и на панели висели кнопки «Ещё»).
+    "home_nav": ["light", "menu"],
     "background_dim": 30,
     # URL/путь к собственному фону вместо встроенного background.png.
     # None = использовать встроенный. APK кэширует загруженный URL локально
