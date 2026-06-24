@@ -315,6 +315,10 @@ CONFIG_SCHEMA = vol.Schema({
         SCREENS_SCHEMA,
     vol.Optional("home_nav",       default=lambda: list(DEFAULT_CONFIG["home_nav"])):
         HOME_NAV_SCHEMA,
+    # Список entity_id штор с инверсией направления (мотор наоборот). Дедуп + валидация
+    # формата через _entity_list. APK меняет open↔close для этих штор.
+    vol.Optional("curtain_reverse", default=list):
+        _entity_list,
     vol.Optional("background_dim", default=DEFAULT_CONFIG["background_dim"]):
         vol.All(int, vol.Range(min=BG_DIM_MIN, max=BG_DIM_MAX)),
     # Если задан — APK подменяет встроенный фон. Допустимые формы:

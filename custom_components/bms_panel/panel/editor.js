@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.6.0';
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.7.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -521,6 +521,26 @@ input[type=range] { width: 100%; }
 .bind-card-meta { font-size: 12px; color: var(--secondary-text-color); }
 .bind-card-meta.error { color: var(--bms-error); font-weight: 500; }
 .bind-card-meta.warn  { color: var(--bms-warn); font-weight: 500; }
+/* Per-curtain reverse */
+.curtain-reverse-box {
+  margin-top: 10px; padding: 10px 12px;
+  border: 1px dashed var(--divider-color); border-radius: 8px;
+  background: var(--card-background-color);
+}
+.curtain-reverse-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500;
+}
+.curtain-reverse-title ha-icon { --mdc-icon-size: 18px; color: var(--primary-color); }
+.curtain-reverse-sub {
+  font-size: 12px; color: var(--secondary-text-color); margin: 4px 0 8px;
+}
+.curtain-reverse-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 4px; cursor: pointer;
+  border-top: 1px solid var(--divider-color);
+}
+.curtain-reverse-row .nm { font-size: 13px; }
 .bind-list {
   max-height: 240px; overflow-y: auto;
   background: var(--card-background-color);
@@ -2365,7 +2385,7 @@ class BMSPanelEditor extends HTMLElement {
               <ha-icon icon="${group.icon}"></ha-icon>
               <div class="bind-group-title">${group.title}</div>
             </div>
-            ${group.binds.map(b => this._renderBind(b, cfg.entities, issues)).join('')}
+            ${group.binds.map(b => this._renderBind(b, cfg.entities, issues, cfg)).join('')}
             ${climatePresetsHtml}
           </div>
         `;
@@ -2373,10 +2393,10 @@ class BMSPanelEditor extends HTMLElement {
     `;
   }
 
-  _renderBind(bindDef, entities, issues) {
+  _renderBind(bindDef, entities, issues, cfg) {
     const meta = BIND_KEYS[bindDef.key];
     const bindIssues = issues.filter(i => i.anchor.type === 'bind_card' && i.anchor.key === bindDef.key);
-    if (meta.multi) return this._renderBindMulti(bindDef, entities, bindIssues);
+    if (meta.multi) return this._renderBindMulti(bindDef, entities, bindIssues, cfg);
     return this._renderBindOne(bindDef, entities, bindIssues);
   }
 
@@ -2421,7 +2441,7 @@ class BMSPanelEditor extends HTMLElement {
     `;
   }
 
-  _renderBindMulti(bindDef, entities, bindIssues) {
+  _renderBindMulti(bindDef, entities, bindIssues, cfg) {
     const meta = BIND_KEYS[bindDef.key];
     const selected = Array.isArray(entities[bindDef.key]) ? entities[bindDef.key] : [];
     // Карта занятости entity_id другими панелями
@@ -2473,11 +2493,37 @@ class BMSPanelEditor extends HTMLElement {
               `).join('')}
             </div>`
         }
+        ${bindDef.key === 'curtains' ? this._renderCurtainReverse(selected, cfg) : ''}
         ${bindIssues.map(i => `
           <div class="inline-issue ${i.severity}">
             <ha-icon icon="${i.severity === 'error' ? 'mdi:alert-circle' : 'mdi:alert'}"></ha-icon>
             <div>${esc(i.message)} <span style="opacity:0.8;">${esc(i.fix_hint)}</span></div>
           </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  /**
+   * Per-curtain «Реверс»: для штор, мотор которых подключён наоборот
+   * (Открыть физически закрывает). APK меняет open↔close для этих entity.
+   * Показываем только выбранные шторы.
+   */
+  _renderCurtainReverse(selected, cfg) {
+    if (!selected || selected.length === 0) return '';
+    const reversed = Array.isArray(cfg.curtain_reverse) ? cfg.curtain_reverse : [];
+    const nameOf = (eid) => this._hass.states[eid]?.attributes.friendly_name || eid;
+    return `
+      <div class="curtain-reverse-box">
+        <div class="curtain-reverse-title">
+          <ha-icon icon="mdi:swap-horizontal"></ha-icon> Реверс направления
+        </div>
+        <div class="curtain-reverse-sub">Включите если штора открывается при нажатии «Закрыть» (мотор подключён наоборот).</div>
+        ${selected.map(eid => `
+          <label class="curtain-reverse-row">
+            <span class="nm">${esc(nameOf(eid))}</span>
+            <input type="checkbox" class="curtain-reverse-cb" value="${esc(eid)}" ${reversed.includes(eid) ? 'checked' : ''}>
+          </label>
         `).join('')}
       </div>
     `;
@@ -2948,6 +2994,27 @@ class BMSPanelEditor extends HTMLElement {
         if (cb.checked && idx < 0) cur.push(cb.value);
         if (!cb.checked && idx >= 0) cur.splice(idx, 1);
         cfg.entities[key] = cur;
+        // Шторы: список «Реверс» зависит от выбора → чистим отвязанные и перерисовываем.
+        if (key === 'curtains') {
+          if (Array.isArray(cfg.curtain_reverse)) {
+            cfg.curtain_reverse = cfg.curtain_reverse.filter(eid => cur.includes(eid));
+          }
+          this._markDirty();
+          this._renderContent();
+          return;
+        }
+        this._markDirty();
+      };
+    });
+
+    // ---- Curtains: per-curtain reverse toggle ----
+    $$('.curtain-reverse-cb').forEach(cb => {
+      cb.onchange = () => {
+        const list = Array.isArray(cfg.curtain_reverse) ? cfg.curtain_reverse.slice() : [];
+        const idx = list.indexOf(cb.value);
+        if (cb.checked && idx < 0) list.push(cb.value);
+        if (!cb.checked && idx >= 0) list.splice(idx, 1);
+        cfg.curtain_reverse = list;
         this._markDirty();
       };
     });
