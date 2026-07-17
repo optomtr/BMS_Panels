@@ -160,6 +160,13 @@ DEFAULT_CONFIG = {
     # None = использовать встроенный. APK кэширует загруженный URL локально
     # (offline-first) и автоматически переключается на встроенный при ошибке.
     "background_image_url": None,
+    # Кадрирование кастомного фона (конструктор в редакторе). Модель общая с APK:
+    # cover-фит в квадрат экрана + zoom (1..4) вокруг центра + сдвиг dx/dy в долях
+    # стороны экрана. {zoom:1, dx:0, dy:0} = как раньше (просто cover).
+    "background_transform": {"zoom": 1.0, "dx": 0.0, "dy": 0.0},
+    # Cache-buster: панель качает фон с ?v=N. Инкрементится кнопкой «Обновить на
+    # панели» — для случая «файл заменили по тому же URL» (иначе кэш отдаёт старое).
+    "background_version": 0,
     "screen_timeout": 30,
     "language": "Русский",
     "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},

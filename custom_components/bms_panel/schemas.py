@@ -49,6 +49,27 @@ HOME_NAV_SCHEMA = vol.All(
 )
 
 
+def _bg_transform(value):
+    """Кадрирование фона: {zoom, dx, dy}. Никогда не raises — clamp в допустимые
+    границы, мусор → дефолт. dx/dy в долях стороны экрана (могут быть отрицательными)."""
+    default = {"zoom": 1.0, "dx": 0.0, "dy": 0.0}
+    if not isinstance(value, dict):
+        return dict(default)
+
+    def _num(key, dflt, lo, hi):
+        try:
+            v = float(value.get(key, dflt))
+        except (TypeError, ValueError):
+            return dflt
+        return min(max(v, lo), hi)
+
+    return {
+        "zoom": _num("zoom", 1.0, 1.0, 4.0),
+        "dx": _num("dx", 0.0, -3.0, 3.0),
+        "dy": _num("dy", 0.0, -3.0, 3.0),
+    }
+
+
 def _entity_value(value):
     """None или строка вида 'domain.name' (один entity)."""
     if value in (None, ""):
@@ -327,6 +348,10 @@ CONFIG_SCHEMA = vol.Schema({
     #   "/local/..."   — путь в HA www (через HA media)
     vol.Optional("background_image_url", default=None):
         vol.Any(None, str),
+    vol.Optional("background_transform", default=lambda: {"zoom": 1.0, "dx": 0.0, "dy": 0.0}):
+        _bg_transform,
+    vol.Optional("background_version", default=0):
+        vol.All(int, vol.Range(min=0)),
     vol.Optional("screen_timeout", default=DEFAULT_CONFIG["screen_timeout"]):
         vol.In(SCREEN_TIMEOUT_OPTIONS),
     vol.Optional("language",       default=DEFAULT_CONFIG["language"]):

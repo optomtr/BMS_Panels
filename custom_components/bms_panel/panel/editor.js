@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.7.0';
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -1505,6 +1505,49 @@ input[type=range] { width: 100%; }
   white-space: nowrap;
 }
 .bg-url-reset:hover { background: var(--secondary-background-color); }
+/* Конструктор кадрирования фона */
+.bg-crop { margin-top: 12px; }
+.bg-crop-stage {
+  position: relative;
+  width: 320px; height: 320px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #0a0a0a;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.bg-crop-stage:active { cursor: grabbing; }
+.bg-crop-img {
+  position: absolute; left: 50%; top: 50%;
+  max-width: none;
+  will-change: transform;
+  pointer-events: none;
+}
+.bg-crop-frame {
+  position: absolute; left: 50%; top: 50%;
+  width: 240px; height: 240px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #C99A55;
+  border-radius: 4px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.bg-crop-frame span {
+  position: absolute; left: 50%; bottom: -26px;
+  transform: translateX(-50%);
+  font-size: 11px; color: #C99A55;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+.bg-crop-controls {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; flex-wrap: wrap;
+}
+.bg-crop-controls input[type="range"] { flex: 1; min-width: 120px; }
+.bg-crop-lbl, #bg-crop-zoom-val { font-size: 12px; color: var(--secondary-text-color); }
+#bg-crop-zoom-val { min-width: 44px; }
 .bg-url-hint {
   font-size: 11px; color: var(--secondary-text-color);
   margin-top: 4px; line-height: 1.4;
@@ -1737,6 +1780,8 @@ class BMSPanelEditor extends HTMLElement {
       home_nav:       attrs.home_nav || ['light','curtain','menu','music','ac'],
       background_dim: attrs.background_dim ?? 30,
       background_image_url: attrs.background_image_url ?? null,
+      background_transform: attrs.background_transform || { zoom: 1, dx: 0, dy: 0 },
+      background_version: attrs.background_version || 0,
       screen_timeout: attrs.screen_timeout ?? 30,
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
@@ -2150,6 +2195,7 @@ class BMSPanelEditor extends HTMLElement {
             <div class="bg-url-hint">
               Пусто — встроенный luxury-фон. Для своего: URL картинки (https://…) или файл из папки HA <code>config/www/</code> (путь <code>/local/имя.jpg</code>). Панель скачает и закэширует (offline-ready).
             </div>
+            ${cfg.background_image_url ? this._renderBgCrop(cfg) : ''}
           </div>
         </div>
         ${this._inlineIssue(issues, i => i.anchor.key === 'background_image_url')}
@@ -2256,6 +2302,120 @@ class BMSPanelEditor extends HTMLElement {
 
       ${this._renderCustomCardsCard(panel, issues)}
     `;
+  }
+
+  // ---- Конструктор кадрирования фона ----
+  // Модель ОБЩАЯ с APK: cover-фит картинки в квадрат экрана + zoom (1..4) вокруг
+  // центра + сдвиг dx/dy в ДОЛЯХ стороны экрана (transform: translate(t) scale(z)).
+  // Рамка = видимая зона панели 480×480. Что в рамке — то и на экране, 1-в-1.
+  _renderBgCrop(cfg) {
+    const t = cfg.background_transform || { zoom: 1, dx: 0, dy: 0 };
+    return `
+      <div class="bg-crop">
+        <div class="bg-crop-stage" id="bg-crop-stage">
+          <img class="bg-crop-img" id="bg-crop-img" src="${esc(cfg.background_image_url)}" draggable="false" alt="">
+          <div class="bg-crop-frame"><span>480 × 480 — видимая зона панели</span></div>
+        </div>
+        <div class="bg-crop-controls">
+          <span class="bg-crop-lbl">Масштаб</span>
+          <input type="range" id="bg-crop-zoom" min="100" max="400" value="${Math.round((t.zoom || 1) * 100)}">
+          <span id="bg-crop-zoom-val">${(t.zoom || 1).toFixed(2)}×</span>
+          <button class="btn ghost" id="bg-crop-reset" type="button">Сброс кадра</button>
+          <button class="btn ghost" id="bg-crop-refresh" type="button"
+                  title="Заставить панель заново скачать файл (если картинку заменили по тому же адресу)">
+            <ha-icon icon="mdi:refresh"></ha-icon> Обновить на панели
+          </button>
+        </div>
+        <div class="bg-url-hint">
+          Перетащите фото мышью и меняйте масштаб (слайдер или колесо), чтобы вписать нужный фрагмент в рамку.
+          Заменили файл по тому же адресу — нажмите «Обновить на панели».
+        </div>
+      </div>`;
+  }
+
+  _bindBgCrop(cfg) {
+    const stage = $('#bg-crop-stage');
+    if (!stage) return;
+    const img = $('#bg-crop-img');
+    const zoomSlider = $('#bg-crop-zoom');
+    const zoomVal = $('#bg-crop-zoom-val');
+    const F = 240;  // сторона рамки в редакторе, px (= 480 панели в масштабе 1:2)
+    const t = cfg.background_transform =
+      Object.assign({ zoom: 1, dx: 0, dy: 0 }, cfg.background_transform);
+    let natW = 0, natH = 0;
+
+    // Пересчёт раскладки: cover-фит относительно РАМКИ + transform. Кламп сдвига,
+    // чтобы в рамке никогда не было пустых краёв.
+    const layout = () => {
+      if (!natW || !natH) return;
+      const ar = natW / natH;
+      const w = ar >= 1 ? F * ar : F;
+      const h = ar >= 1 ? F : F / ar;
+      img.style.width = w + 'px';
+      img.style.height = h + 'px';
+      img.style.marginLeft = (-w / 2) + 'px';
+      img.style.marginTop = (-h / 2) + 'px';
+      const z = Math.min(4, Math.max(1, t.zoom || 1));
+      t.zoom = z;
+      const maxTx = Math.max(0, (w * z - F) / 2);
+      const maxTy = Math.max(0, (h * z - F) / 2);
+      let tx = (t.dx || 0) * F, ty = (t.dy || 0) * F;
+      tx = Math.min(maxTx, Math.max(-maxTx, tx));
+      ty = Math.min(maxTy, Math.max(-maxTy, ty));
+      t.dx = tx / F;
+      t.dy = ty / F;
+      // ВАЖНО: translate ПЕРЕД scale (CSS применяет справа налево) — сдвиг в
+      // экранных px, не масштабируется. APK повторяет ровно эту модель.
+      img.style.transform = `translate(${tx}px, ${ty}px) scale(${z})`;
+      if (zoomVal) zoomVal.textContent = z.toFixed(2) + '×';
+      if (zoomSlider) zoomSlider.value = Math.round(z * 100);
+    };
+    img.onload = () => { natW = img.naturalWidth; natH = img.naturalHeight; layout(); };
+    if (img.complete && img.naturalWidth) { natW = img.naturalWidth; natH = img.naturalHeight; layout(); }
+
+    // Перетаскивание (мышь + touch через pointer events).
+    let drag = null;
+    stage.onpointerdown = (e) => {
+      drag = { x: e.clientX, y: e.clientY, dx: t.dx, dy: t.dy };
+      stage.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+    stage.onpointermove = (e) => {
+      if (!drag) return;
+      t.dx = drag.dx + (e.clientX - drag.x) / F;
+      t.dy = drag.dy + (e.clientY - drag.y) / F;
+      layout();
+    };
+    stage.onpointerup = stage.onpointercancel = () => {
+      if (!drag) return;
+      drag = null;
+      this._markDirty();
+    };
+    // Зум: слайдер + колесо мыши над рамкой.
+    if (zoomSlider) zoomSlider.oninput = () => {
+      t.zoom = parseInt(zoomSlider.value, 10) / 100;
+      layout();
+      this._markDirty();
+    };
+    stage.onwheel = (e) => {
+      e.preventDefault();
+      t.zoom = Math.min(4, Math.max(1, (t.zoom || 1) - Math.sign(e.deltaY) * 0.1));
+      layout();
+      this._markDirty();
+    };
+    const resetBtn = $('#bg-crop-reset');
+    if (resetBtn) resetBtn.onclick = () => {
+      t.zoom = 1; t.dx = 0; t.dy = 0;
+      layout();
+      this._markDirty();
+      this._toast('Кадр сброшен: фото целиком (cover)', 'info', { duration: 1600 });
+    };
+    const refreshBtn = $('#bg-crop-refresh');
+    if (refreshBtn) refreshBtn.onclick = () => {
+      cfg.background_version = (cfg.background_version || 0) + 1;
+      this._markDirty();
+      this._toast('После сохранения панель заново скачает картинку', 'info', { duration: 2200 });
+    };
   }
 
   // ---- Custom Cards UI ----
@@ -2890,17 +3050,26 @@ class BMSPanelEditor extends HTMLElement {
         this._markDirty();
         this._softRefreshPreview();
       };
+      // На blur (URL введён): старый кадр не имеет смысла для новой картинки —
+      // сбрасываем и перерисовываем, чтобы появился/пропал конструктор кадра.
+      bgUrl.onchange = () => {
+        cfg.background_transform = { zoom: 1, dx: 0, dy: 0 };
+        this._renderContent();
+      };
     }
     if (bgReset) {
       bgReset.onclick = () => {
         cfg.background_image_url = null;
+        cfg.background_transform = { zoom: 1, dx: 0, dy: 0 };
         if (bgUrl) bgUrl.value = '';
         _applyBgThumb('');
         this._markDirty();
         this._softRefreshPreview();
+        this._renderContent();
         this._toast('Фон сброшен на встроенный', 'info', { duration: 1600 });
       };
     }
+    this._bindBgCrop(cfg);
     const tmout = $('#timeout');
     if (tmout) tmout.onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._markDirty(); };
     const lang = $('#lang');
