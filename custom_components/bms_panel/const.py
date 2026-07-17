@@ -13,6 +13,17 @@ CONF_PANEL_NAME = "panel_name"
 SIDEBAR_URL_PATH = "bms-panels"
 STATIC_URL_PATH = "/bms_panel_static"
 
+# ---- Загрузка фона кнопкой (v2.9.0) ----
+# Файлы сохраняются в config/bms_panel_bg/ с УНИКАЛЬНЫМ именем на каждую загрузку
+# (bg_<panel_id>_<timestamp>.<ext>) — кэш-проблемы «фото не меняется» исчезают
+# в принципе: адрес всегда новый. Раздаём сами через свой static path — не
+# зависим от существования config/www на момент старта HA.
+BG_UPLOAD_URL_PREFIX = "/bms_panel_bg"
+BG_UPLOAD_DIR = "bms_panel_bg"           # относительно config dir
+BG_UPLOAD_MAX_BYTES = 10 * 1024 * 1024   # 10 МБ достаточно для фото фона
+BG_UPLOAD_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+BG_UPLOAD_KEEP_PER_PANEL = 2             # хранить последние N файлов панели
+
 # ---- Текущая версия схемы. Меняется когда добавляются/удаляются поля. ----
 # Android знает свою минимальную поддерживаемую версию. Если APK старый и схема
 # выше — интегратор увидит warning «обновите APK».

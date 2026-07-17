@@ -14,11 +14,13 @@ import json
 import logging
 import os
 import re
+import time
 
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.components import panel_custom
+from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -31,6 +33,11 @@ from homeassistant.helpers import (
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
+    BG_UPLOAD_DIR,
+    BG_UPLOAD_EXTENSIONS,
+    BG_UPLOAD_KEEP_PER_PANEL,
+    BG_UPLOAD_MAX_BYTES,
+    BG_UPLOAD_URL_PREFIX,
     DEFAULT_CONFIG,
     DOMAIN,
     SERVICE_ADD_PANEL,
@@ -237,6 +244,24 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             hass.http.register_static_path(STATIC_URL_PATH, panel_dir, cache_headers=False)
         hass.data[DOMAIN]["static_registered"] = True
 
+    # ---- Static path + upload-endpoint для загруженных фонов (v2.9.0) ----
+    # Свой каталог (config/bms_panel_bg) и свой URL — не зависим от config/www.
+    if not hass.data[DOMAIN].get("bg_upload_registered"):
+        bg_dir = hass.config.path(BG_UPLOAD_DIR)
+        await hass.async_add_executor_job(lambda: os.makedirs(bg_dir, exist_ok=True))
+        try:
+            await hass.http.async_register_static_paths([
+                type("StaticPathConfig", (), {
+                    "url_path": BG_UPLOAD_URL_PREFIX,
+                    "path": bg_dir,
+                    "cache_headers": False,
+                })()
+            ])
+        except (AttributeError, TypeError):
+            hass.http.register_static_path(BG_UPLOAD_URL_PREFIX, bg_dir, cache_headers=False)
+        hass.http.register_view(BmsPanelBgUploadView())
+        hass.data[DOMAIN]["bg_upload_registered"] = True
+
     # ---- Cache-busting: version из manifest.json ----
     # async-friendly: HA не любит open() в event loop (выдаёт WARNING про blocking call).
     # Читаем через executor — то же самое, но не блокирует loop.
@@ -298,28 +323,101 @@ def _panel_payload(hass: HomeAssistant, panel_id: str) -> dict:
     }
 
 
-def _bg_auto_version(hass: HomeAssistant, cfg: dict) -> int | None:
-    """Авто-версия фона для /local/ путей: mtime файла в config/www.
-
-    Панель качает фон с ?v=<background_version>. Если интегратор ЗАМЕНИЛ файл по
-    тому же адресу — mtime меняется → панель сама перекачает картинку в течение
-    одного poll'а (~5с), без кнопки «Обновить на панели». Для внешних http(s)
-    URL возвращает None — там остаётся ручная версия.
-    Sync-функция с os.stat — вызывать через async_add_executor_job.
-    """
-    url = cfg.get("background_image_url") or ""
-    if not url.startswith("/local/"):
-        return None
-    rel = os.path.normpath(url[len("/local/"):].split("?")[0]).lstrip("/")
-    www_root = os.path.abspath(hass.config.path("www"))
-    path = os.path.abspath(os.path.join(www_root, rel))
-    # Защита от выхода за пределы www (../../secrets.yaml и т.п.)
-    if not path.startswith(www_root + os.sep):
+def _stat_version(root: str, url_tail: str) -> int | None:
+    """mtime файла под root по хвосту URL (с защитой от path traversal)."""
+    rel = os.path.normpath(url_tail.split("?")[0]).lstrip("/")
+    root_abs = os.path.abspath(root)
+    path = os.path.abspath(os.path.join(root_abs, rel))
+    if not path.startswith(root_abs + os.sep):
         return None
     try:
         return int(os.stat(path).st_mtime)
     except OSError:
         return None
+
+
+def _bg_auto_version(hass: HomeAssistant, cfg: dict) -> int | None:
+    """Авто-версия фона для локальных путей: mtime файла.
+
+    Панель качает фон с ?v=<background_version>. Если файл ЗАМЕНИЛИ по тому же
+    адресу — mtime меняется → панель сама перекачает картинку в течение одного
+    poll'а (~5с), без кнопки «Обновить на панели». Для внешних http(s) URL
+    возвращает None — там остаётся ручная версия.
+    Sync-функция с os.stat — вызывать через async_add_executor_job.
+    """
+    url = cfg.get("background_image_url") or ""
+    if url.startswith("/local/"):
+        return _stat_version(hass.config.path("www"), url[len("/local/"):])
+    if url.startswith(BG_UPLOAD_URL_PREFIX + "/"):
+        return _stat_version(hass.config.path(BG_UPLOAD_DIR), url[len(BG_UPLOAD_URL_PREFIX) + 1:])
+    return None
+
+
+def _write_bg_file(hass: HomeAssistant, panel_id: str, filename: str, contents: bytes) -> None:
+    """Записать загруженный фон + удалить старые файлы этой панели.
+
+    Оставляем последние BG_UPLOAD_KEEP_PER_PANEL (текущий + предыдущий: панель
+    могла ещё не переключиться на новый URL до сохранения конфига).
+    Sync — вызывать через executor.
+    """
+    bg_dir = hass.config.path(BG_UPLOAD_DIR)
+    os.makedirs(bg_dir, exist_ok=True)
+    with open(os.path.join(bg_dir, filename), "wb") as f:
+        f.write(contents)
+    prefix = f"bg_{panel_id}_"
+    stale = sorted(
+        (n for n in os.listdir(bg_dir) if n.startswith(prefix)),
+        reverse=True,  # имена содержат unix-время → сортировка по свежести
+    )[BG_UPLOAD_KEEP_PER_PANEL:]
+    for name in stale:
+        try:
+            os.remove(os.path.join(bg_dir, name))
+        except OSError:
+            pass
+
+
+class BmsPanelBgUploadView(HomeAssistantView):
+    """POST /api/bms_panel/upload_bg — загрузка фото фона из редактора.
+
+    multipart: `file` (картинка) + `panel_id` (slug). Файл сохраняется под
+    УНИКАЛЬНЫМ именем bg_<panel_id>_<unix>.<ext> → у панели каждый раз новый
+    URL, кэш «фото не меняется» невозможен в принципе.
+    """
+
+    url = "/api/bms_panel/upload_bg"
+    name = "api:bms_panel:upload_bg"
+    requires_auth = True
+
+    async def post(self, request):
+        try:
+            from homeassistant.components.http import KEY_HASS
+            hass = request.app[KEY_HASS]
+        except (ImportError, KeyError):
+            hass = request.app["hass"]
+        data = await request.post()
+        file_field = data.get("file")
+        panel_id = str(data.get("panel_id") or "").strip()
+        if file_field is None or not hasattr(file_field, "file"):
+            return self.json({"error": "Нет файла"}, status_code=400)
+        if not re.match(SLUG_REGEX, panel_id):
+            return self.json({"error": "Некорректный panel_id"}, status_code=400)
+        ext = (file_field.filename or "").rsplit(".", 1)[-1].lower()
+        if ext not in BG_UPLOAD_EXTENSIONS:
+            allowed = ", ".join(sorted(BG_UPLOAD_EXTENSIONS))
+            return self.json(
+                {"error": f"Формат «.{ext}» не поддерживается. Допустимы: {allowed}"},
+                status_code=400,
+            )
+        contents = await hass.async_add_executor_job(file_field.file.read)
+        if not contents:
+            return self.json({"error": "Пустой файл"}, status_code=400)
+        if len(contents) > BG_UPLOAD_MAX_BYTES:
+            mb = BG_UPLOAD_MAX_BYTES // (1024 * 1024)
+            return self.json({"error": f"Файл больше {mb} МБ"}, status_code=400)
+        filename = f"bg_{panel_id}_{int(time.time())}.{ext}"
+        await hass.async_add_executor_job(_write_bg_file, hass, panel_id, filename, contents)
+        _LOGGER.info("BMS Panel: фон загружен %s (%d байт)", filename, len(contents))
+        return self.json({"url": f"{BG_UPLOAD_URL_PREFIX}/{filename}"})
 
 
 def _async_register_websocket_api(hass: HomeAssistant) -> None:

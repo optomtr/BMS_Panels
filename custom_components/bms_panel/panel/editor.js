@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.2';
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.9.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -1505,6 +1505,10 @@ input[type=range] { width: 100%; }
   white-space: nowrap;
 }
 .bg-url-reset:hover { background: var(--secondary-background-color); }
+/* Загрузка фото фона */
+.bg-upload-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.bg-upload-row .btn ha-icon { --mdc-icon-size: 18px; }
+.bg-upload-status { font-size: 12px; color: var(--secondary-text-color); }
 /* Конструктор кадрирования фона */
 .bg-crop { margin-top: 12px; }
 .bg-crop-stage {
@@ -2192,8 +2196,15 @@ class BMSPanelEditor extends HTMLElement {
                      value="${esc(cfg.background_image_url || '')}">
               <button class="bg-url-reset" id="bg-url-reset" title="Использовать встроенный фон">Сброс</button>
             </div>
+            <div class="bg-upload-row">
+              <button class="btn primary" id="bg-upload-btn" type="button">
+                <ha-icon icon="mdi:upload"></ha-icon> Загрузить фото
+              </button>
+              <input type="file" id="bg-upload-input" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" style="display:none;">
+              <span class="bg-upload-status" id="bg-upload-status"></span>
+            </div>
             <div class="bg-url-hint">
-              Пусто — встроенный luxury-фон. Для своего: URL картинки (https://…) или файл из папки HA <code>config/www/</code> (путь <code>/local/имя.jpg</code>). Панель скачает и закэширует (offline-ready).
+              Проще всего — «Загрузить фото»: выберите картинку со своего устройства, она сохранится в Home Assistant под новым именем (панель всегда увидит замену). Поле адреса выше — для продвинутых (https://… или /local/…). Пусто — встроенный luxury-фон.
             </div>
             ${cfg.background_image_url ? this._renderBgCrop(cfg) : ''}
           </div>
@@ -3076,6 +3087,50 @@ class BMSPanelEditor extends HTMLElement {
       };
     }
     this._bindBgCrop(cfg);
+
+    // ---- Загрузка фото фона со своего устройства ----
+    const upBtn = $('#bg-upload-btn');
+    const upInput = $('#bg-upload-input');
+    const upStatus = $('#bg-upload-status');
+    if (upBtn && upInput) {
+      upBtn.onclick = () => upInput.click();
+      upInput.onchange = async () => {
+        const file = upInput.files && upInput.files[0];
+        upInput.value = '';  // чтобы можно было выбрать тот же файл повторно
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+          this._toast('Файл больше 10 МБ — выберите фото поменьше', 'error', { duration: 3500 });
+          return;
+        }
+        upBtn.disabled = true;
+        if (upStatus) upStatus.textContent = 'Загрузка…';
+        try {
+          const form = new FormData();
+          form.append('file', file, file.name);
+          form.append('panel_id', panel.panel_id);
+          // fetchWithAuth — стандартный способ авторизованных запросов из custom panel.
+          const doFetch = this._hass.fetchWithAuth
+            ? (u, o) => this._hass.fetchWithAuth(u, o)
+            : (u, o) => fetch(u, Object.assign({}, o, {
+                headers: { Authorization: `Bearer ${this._hass.auth?.data?.access_token || ''}` },
+              }));
+          const resp = await doFetch('/api/bms_panel/upload_bg', { method: 'POST', body: form });
+          const out = await resp.json().catch(() => ({}));
+          if (!resp.ok || !out.url) throw new Error(out.error || `HTTP ${resp.status}`);
+          // Уникальный URL на каждую загрузку → кэш-проблемы исключены.
+          cfg.background_image_url = out.url;
+          cfg.background_transform = { zoom: 1, dx: 0, dy: 0 };
+          this._markDirty();
+          this._renderContent();
+          this._softRefreshPreview();
+          this._toast('Фото загружено — впишите кадр и нажмите «Сохранить»', 'info', { duration: 3500 });
+        } catch (e) {
+          this._toast('Не удалось загрузить: ' + (e && e.message ? e.message : e), 'error', { duration: 4500 });
+          if (upStatus) upStatus.textContent = '';
+          upBtn.disabled = false;
+        }
+      };
+    }
     const tmout = $('#timeout');
     if (tmout) tmout.onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._markDirty(); };
     const lang = $('#lang');

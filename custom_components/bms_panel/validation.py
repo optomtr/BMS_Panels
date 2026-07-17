@@ -145,7 +145,7 @@ def validate(
             ok = (
                 u.startswith("http://") or u.startswith("https://") or
                 u.startswith("/local/") or u.startswith("/media/") or
-                u.startswith("/api/")
+                u.startswith("/api/") or u.startswith("/bms_panel_bg/")
             )
             if not ok:
                 issues.append(Issue(
