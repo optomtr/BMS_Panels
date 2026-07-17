@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.1';
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.2';
 
 // ---------- Метаданные экранов ----------
 
@@ -2186,7 +2186,7 @@ class BMSPanelEditor extends HTMLElement {
           <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
             <div class="bg-url-row">
               <div class="bg-url-thumb" id="bg-url-thumb"
-                   style="background-image: url('${esc(cfg.background_image_url || '/bms_panel_static/background.png')}');"></div>
+                   style="background-image: url('${esc(cfg.background_image_url ? cfg.background_image_url + (cfg.background_image_url.includes('?') ? '&' : '?') + '_e=' + Date.now() : '/bms_panel_static/background.png')}');"></div>
               <input type="text" id="bg-url" class="control"
                      placeholder="https://… или /local/myroom.jpg (пусто = встроенный)"
                      value="${esc(cfg.background_image_url || '')}">
@@ -2310,10 +2310,13 @@ class BMSPanelEditor extends HTMLElement {
   // Рамка = видимая зона панели 480×480. Что в рамке — то и на экране, 1-в-1.
   _renderBgCrop(cfg) {
     const t = cfg.background_transform || { zoom: 1, dx: 0, dy: 0 };
+    // Cache-bust ТОЛЬКО для отображения в редакторе: браузер кэширует /local/…,
+    // и после замены файла конструктор показывал бы старую картинку.
+    const bust = (cfg.background_image_url.includes('?') ? '&' : '?') + '_e=' + Date.now();
     return `
       <div class="bg-crop">
         <div class="bg-crop-stage" id="bg-crop-stage">
-          <img class="bg-crop-img" id="bg-crop-img" src="${esc(cfg.background_image_url)}" draggable="false" alt="">
+          <img class="bg-crop-img" id="bg-crop-img" src="${esc(cfg.background_image_url)}${bust}" draggable="false" alt="">
           <div class="bg-crop-frame"><span>480 × 480 — видимая зона панели</span></div>
         </div>
         <div class="bg-crop-controls">

@@ -82,12 +82,21 @@ class BMSPanelSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         cfg = self._stored_config()
-        return {
+        attrs = {
             "panel_id":             self._panel_id,
             "panel_name":           self._panel_name,
             "config_schema_version": cfg.get("schema_version", CONFIG_SCHEMA_VERSION),
             **cfg,
         }
+        # Авто-версия фона (mtime /local/ файла). Значение кэшируется ws-хендлером
+        # list_panels (панель опрашивает его каждые ~5с) — здесь читаем БЕЗ I/O,
+        # чтобы sensor и poll отдавали одинаковую версию (без флип-флопа кэша).
+        auto = self._hass.data.get(DOMAIN, {}).get("bg_versions", {}).get(self._panel_id)
+        if auto:
+            attrs["background_version"] = max(
+                int(attrs.get("background_version") or 0), auto
+            )
+        return attrs
 
     def _stored_config(self) -> dict:
         """Достать конфиг из storage без сайд-эффектов.

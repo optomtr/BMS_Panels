@@ -298,6 +298,30 @@ def _panel_payload(hass: HomeAssistant, panel_id: str) -> dict:
     }
 
 
+def _bg_auto_version(hass: HomeAssistant, cfg: dict) -> int | None:
+    """Авто-версия фона для /local/ путей: mtime файла в config/www.
+
+    Панель качает фон с ?v=<background_version>. Если интегратор ЗАМЕНИЛ файл по
+    тому же адресу — mtime меняется → панель сама перекачает картинку в течение
+    одного poll'а (~5с), без кнопки «Обновить на панели». Для внешних http(s)
+    URL возвращает None — там остаётся ручная версия.
+    Sync-функция с os.stat — вызывать через async_add_executor_job.
+    """
+    url = cfg.get("background_image_url") or ""
+    if not url.startswith("/local/"):
+        return None
+    rel = os.path.normpath(url[len("/local/"):].split("?")[0]).lstrip("/")
+    www_root = os.path.abspath(hass.config.path("www"))
+    path = os.path.abspath(os.path.join(www_root, rel))
+    # Защита от выхода за пределы www (../../secrets.yaml и т.п.)
+    if not path.startswith(www_root + os.sep):
+        return None
+    try:
+        return int(os.stat(path).st_mtime)
+    except OSError:
+        return None
+
+
 def _async_register_websocket_api(hass: HomeAssistant) -> None:
     """WebSocket API для редактора. Не зависит от наличия sensor в hass.states."""
     if hass.data[DOMAIN].get("websocket_registered"):
@@ -314,6 +338,19 @@ def _async_register_websocket_api(hass: HomeAssistant) -> None:
     ) -> None:
         panel_ids = sorted(_taken_panel_ids(hass))
         panels = [_panel_payload(hass, panel_id) for panel_id in panel_ids]
+        # Авто cache-bust фона: для /local/ файлов версия = max(ручная, mtime).
+        # Кэшируем в hass.data — sensor.extra_state_attributes читает БЕЗ I/O,
+        # чтобы обе выдачи конфига (poll и state_changed) несли одну версию
+        # (иначе флип-флоп версий заставлял бы панель мигать старой картинкой).
+        bg_versions: dict = hass.data[DOMAIN].setdefault("bg_versions", {})
+        for p in panels:
+            cfg = p.get("config") or {}
+            auto = await hass.async_add_executor_job(_bg_auto_version, hass, cfg)
+            if auto:
+                bg_versions[p["panel_id"]] = auto
+                cfg["background_version"] = max(
+                    int(cfg.get("background_version") or 0), auto
+                )
         connection.send_result(msg["id"], panels)
 
     websocket_api.async_register_command(hass, websocket_list_panels)
