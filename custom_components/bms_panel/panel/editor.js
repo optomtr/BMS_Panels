@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.0';
+import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.8.1';
 
 // ---------- Метаданные экранов ----------
 
@@ -2334,6 +2334,9 @@ class BMSPanelEditor extends HTMLElement {
   }
 
   _bindBgCrop(cfg) {
+    // ВАЖНО: $ в _bindEvents — ЛОКАЛЬНАЯ const, здесь недоступна. Обращение к
+    // глобальному $ роняло весь редактор (ReferenceError → пустая страница, v2.8.0).
+    const $ = (sel) => this.shadowRoot.querySelector(sel);
     const stage = $('#bg-crop-stage');
     if (!stage) return;
     const img = $('#bg-crop-img');
