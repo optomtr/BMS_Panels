@@ -40,6 +40,8 @@ export const BIND_KEYS = {
   co2_sensor:       { multi: false, domain: 'sensor',       requiresScreen: 'ventilation' },
   temp_sensor:      { multi: false, domain: 'sensor',       requiresScreen: null          },
   humidity_sensor:  { multi: false, domain: 'sensor',       requiresScreen: null          },
+  // Датчик температуры тёплого пола на главном экране (опционально).
+  home_floor_temp_sensor: { multi: false, domain: 'sensor', requiresScreen: null          },
   // Fallback-сенсоры для climate-экранов — имена строго совпадают с APK:
   // ClimateMoodScreen.kt pinnedOne("acs_current_temp") и т.д.
   acs_current_temp:        { multi: false, domain: 'sensor', requiresScreen: 'ac'        },
