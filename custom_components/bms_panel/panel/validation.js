@@ -21,7 +21,7 @@ const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 // ID нижнего ряда главного экрана. Должно совпадать с HOME_NAV_OPTIONS в const.py
 // и editor.js (все 9 разделов). Раньше было 7 → клиент-валидатор флагал
 // floor/convector как «неизвестно Android-приложению».
-const HOME_NAV_OPTIONS = ['light','curtain','window','menu','music','ac','heating','floor','convector','ventilation'];
+export const HOME_NAV_OPTIONS = ['light','curtain','window','menu','music','ac','heating','floor','convector','ventilation'];
 // От 1 до 5 иконок. Раньше требовалось ровно 5 → лишние слоты заполнялись «menu»
 // и на панели висели кнопки «Ещё». Теперь интегратор кладёт сколько нужно.
 const HOME_NAV_MIN_LEN = 1;

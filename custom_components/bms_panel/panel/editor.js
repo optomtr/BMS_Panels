@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.11.0';
+import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.11.1';
 
 // ---------- Метаданные экранов ----------
 
@@ -48,7 +48,9 @@ const SCREEN_META = {
 // Все 9 разделов доступны для нижних иконок (1-в-1 с APK NAV_DEFS).
 // Раньше отсутствовали floor/convector → их нельзя было выбрать, конфигуратор
 // заменял их на 'menu'.
-const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
+// HOME_NAV_OPTIONS импортируется из validation.js — единый источник.
+// Был локальный дубль без 'window': экран «Окно» существовал, а в выпадашке
+// нижних иконок его не было (сообщение владельца 2026-07-31).
 // От 1 до 5 иконок (синхронно с const.py HOME_NAV_MIN_LEN/MAX_LEN и validation.js).
 const HOME_NAV_MIN_LEN = 1;
 const HOME_NAV_MAX_LEN = 5;
