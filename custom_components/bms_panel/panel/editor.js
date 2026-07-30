@@ -35,6 +35,7 @@ const BMS_LOGO_MARK = `
 const SCREEN_META = {
   light:       { icon: 'mdi:lightbulb-outline',  ru: 'Свет',         en: 'Light',       hint: 'Лампы и светильники' },
   curtain:     { icon: 'mdi:curtains',           ru: 'Шторы',        en: 'Curtain',     hint: 'Шторы, рольставни, жалюзи' },
+  window:      { icon: 'mdi:window-open-variant', ru: 'Окно',         en: 'Window',      hint: 'Мансардные окна на крыше' },
   music:       { icon: 'mdi:music',              ru: 'Музыка',       en: 'Music',       hint: 'Колонки, медиа-плееры' },
   // Short titles — соответствуют APK Menu/header (АС / Радиатор / Тёплый пол / Конвектор)
   ac:          { icon: 'mdi:air-conditioner',    ru: 'AC',           en: 'AC',          hint: 'Кондиционеры (cool/heat)' },
@@ -59,6 +60,8 @@ const BIND_GROUPS = [
     binds: [{ key: 'lights', label: 'Лампы и светильники' }] },
   { key: 'curtain',     title: 'Шторы',          icon: 'mdi:curtains',          screen: 'curtain',
     binds: [{ key: 'curtains', label: 'Шторы / жалюзи' }] },
+  { key: 'window',      title: 'Окно',           icon: 'mdi:window-open-variant', screen: 'window',
+    binds: [{ key: 'windows', label: 'Окна на крыше (cover)' }] },
   { key: 'music',       title: 'Музыка',         icon: 'mdi:music',             screen: 'music',
     binds: [{ key: 'media_players', label: 'Медиа-плееры' }] },
   { key: 'home',        title: 'Главный экран',  icon: 'mdi:home-thermometer',  screen: null,

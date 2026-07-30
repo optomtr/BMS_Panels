@@ -21,7 +21,7 @@ const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 // ID нижнего ряда главного экрана. Должно совпадать с HOME_NAV_OPTIONS в const.py
 // и editor.js (все 9 разделов). Раньше было 7 → клиент-валидатор флагал
 // floor/convector как «неизвестно Android-приложению».
-const HOME_NAV_OPTIONS = ['light','curtain','menu','music','ac','heating','floor','convector','ventilation'];
+const HOME_NAV_OPTIONS = ['light','curtain','window','menu','music','ac','heating','floor','convector','ventilation'];
 // От 1 до 5 иконок. Раньше требовалось ровно 5 → лишние слоты заполнялись «menu»
 // и на панели висели кнопки «Ещё». Теперь интегратор кладёт сколько нужно.
 const HOME_NAV_MIN_LEN = 1;
@@ -36,6 +36,7 @@ export const BIND_KEYS = {
   heatings:         { multi: true,  domain: 'climate',      requiresScreen: 'heating'     },
   floors:           { multi: true,  domain: 'climate',      requiresScreen: 'floor'       },
   convectors:       { multi: true,  domain: 'climate',      requiresScreen: 'convector'   },
+  windows:          { multi: true,  domain: 'cover',        requiresScreen: 'window' },
   ventilation_fans: { multi: true,  domain: 'fan',          requiresScreen: 'ventilation' },
   co2_sensor:       { multi: false, domain: 'sensor',       requiresScreen: 'ventilation' },
   temp_sensor:      { multi: false, domain: 'sensor',       requiresScreen: null          },
@@ -52,7 +53,7 @@ export const BIND_KEYS = {
   convector_fan:           { multi: false, domain: 'fan',    requiresScreen: 'convector' },
 };
 
-export const SCREEN_KEYS = ['light','curtain','music','ac','heating','floor','convector','ventilation'];
+export const SCREEN_KEYS = ['light','curtain','window','music','ac','heating','floor','convector','ventilation'];
 
 const SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600];
 const LANGUAGES = ['English', 'Русский'];

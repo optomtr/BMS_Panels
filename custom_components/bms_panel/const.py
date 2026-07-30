@@ -31,13 +31,13 @@ CONFIG_SCHEMA_VERSION = 3  # +climate_presets (v2.3.0)
 
 # ---- Экраны панели ----
 # id → meta. Android читает по id; UI берёт label/icon отсюда.
-SCREEN_KEYS = ["light", "curtain", "music", "ac", "heating", "floor", "convector", "ventilation"]
+SCREEN_KEYS = ["light", "curtain", "window", "music", "ac", "heating", "floor", "convector", "ventilation"]
 
 # ---- Иконки нижнего ряда главного экрана ----
 # Все 9 разделов (1-в-1 с APK NAV_DEFS и editor.js HOME_NAV_OPTIONS).
 # Раньше отсутствовали floor/convector → voluptuous-схема (vol.In) отвергала их
 # при сохранении и заменяла на default ('menu').
-HOME_NAV_OPTIONS = ["light", "curtain", "menu", "music", "ac", "heating", "floor", "convector", "ventilation"]
+HOME_NAV_OPTIONS = ["light", "curtain", "window", "menu", "music", "ac", "heating", "floor", "convector", "ventilation"]
 # Можно поставить от 1 до 5 иконок (APK рендерит ровно столько, сколько задано).
 # Раньше жёстко требовалось 5 → лишние слоты заполнялись «menu» и на панели
 # торчали кнопки «Ещё», даже когда добавлять было нечего.
@@ -52,6 +52,8 @@ BIND_KEYS = {
     # Свет / шторы / музыка
     "lights":          {"multi": True,  "domain": "light",        "requires_screen": "light"},
     "curtains":        {"multi": True,  "domain": "cover",        "requires_screen": "curtain"},
+    # Мансардные окна (крыша) — тоже cover, но отдельный экран «Окно»
+    "windows":         {"multi": True,  "domain": "cover",        "requires_screen": "window"},
     "media_players":   {"multi": True,  "domain": "media_player", "requires_screen": "music"},
 
     # Климат — multi по типу
@@ -162,6 +164,7 @@ DEFAULT_CONFIG = {
         "floor":       {"enabled": False, "order": 6, "label": "Floor heat"},
         "convector":   {"enabled": False, "order": 7, "label": "Convector"},
         "ventilation": {"enabled": False, "order": 8, "label": "Ventilation"},
+        "window":      {"enabled": False, "order": 9, "label": "Window"},
     },
     # home_nav по умолчанию: light (включён) + menu для доступа к остальным экранам.
     # Интегратор добавляет ещё иконки (до 5) под конкретный объект — лишние слоты
