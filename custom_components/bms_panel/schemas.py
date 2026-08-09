@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import voluptuous as vol
 
 from .const import (
@@ -31,6 +32,8 @@ from .const import (
     SCREEN_KEYS,
     SCREEN_TIMEOUT_OPTIONS,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 # ---------- Под-схемы ----------
 
@@ -396,10 +399,26 @@ def normalize_config(raw: dict | None) -> dict:
     Никогда не падает (raises) — worst-case возвращает DEFAULT_CONFIG.
     Это критично, потому что Android-приложение должно переваривать любой конфиг.
     """
-    try:
-        cfg = CONFIG_SCHEMA(raw or {})
-    except vol.Invalid:
-        return copy.deepcopy(DEFAULT_CONFIG)
+    src = dict(raw) if isinstance(raw, dict) else {}
+    # «Спасательный» проход: раньше ОДНО кривое поле (screen_timeout=45, чужой
+    # language, float вместо int) роняло всю схему → возвращался ВЕСЬ DEFAULT_CONFIG,
+    # и это персистилось — панель в проде молча теряла все привязки/экраны/фон.
+    # Теперь отбрасываем ТОЛЬКО сломанное поле верхнего уровня (схема подставит
+    # ему дефолт), остальные привязки сохраняются. Цикл ограничен числом ключей.
+    for _ in range(len(src) + 2):
+        try:
+            cfg = CONFIG_SCHEMA(src)
+            _autofix_home_nav(cfg)
+            return cfg
+        except vol.Invalid as err:
+            path = getattr(err, "path", None) or []
+            top = path[0] if path else None
+            if top is None or top not in src:
+                break
+            src = {k: v for k, v in src.items() if k != top}
+            _LOGGER.warning("normalize_config: отброшено невалидное поле %r (%s)", top, err)
+    # Ничего не спаслось (пустой/полностью битый вход) — как раньше, дефолт.
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
     _autofix_home_nav(cfg)
     return cfg
 

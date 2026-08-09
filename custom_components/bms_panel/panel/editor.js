@@ -1797,6 +1797,13 @@ class BMSPanelEditor extends HTMLElement {
       entities:       attrs.entities || {},
       area_id:        attrs.area_id || null,
       custom_cards:   Array.isArray(attrs.custom_cards) ? attrs.custom_cards : [],
+      // curtain_reverse и climate_presets редактируются в UI (чекбоксы «Реверс»,
+      // редактор пресетов), но их НЕ было в этом белом списке — при следующем
+      // «Сохранить» (merge:false → сервер нормализует к дефолтам) они молча
+      // стирались: у клиента шторы ехали в обратную сторону, пресеты сбрасывались.
+      curtain_reverse: Array.isArray(attrs.curtain_reverse) ? attrs.curtain_reverse : [],
+      climate_presets: (attrs.climate_presets && typeof attrs.climate_presets === 'object')
+        ? attrs.climate_presets : {},
     };
   }
 

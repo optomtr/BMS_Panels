@@ -364,9 +364,13 @@ def _write_bg_file(hass: HomeAssistant, panel_id: str, filename: str, contents: 
     os.makedirs(bg_dir, exist_ok=True)
     with open(os.path.join(bg_dir, filename), "wb") as f:
         f.write(contents)
-    prefix = f"bg_{panel_id}_"
+    # ТОЧНОЕ сопоставление: bg_<panel_id>_<unix>.<ext>. Раньше был startswith(
+    # "bg_living_"), и он ЛОВИЛ файлы панели "living_bath" (bg_living_bath_...)
+    # → свежий фон соседней панели удалялся сразу после записи. Якорим на
+    # цифры-время и расширение, чтобы суффикс id другой панели не совпадал.
+    own = re.compile(rf"^bg_{re.escape(panel_id)}_\d+\.[A-Za-z0-9]+$")
     stale = sorted(
-        (n for n in os.listdir(bg_dir) if n.startswith(prefix)),
+        (n for n in os.listdir(bg_dir) if own.match(n)),
         reverse=True,  # имена содержат unix-время → сортировка по свежести
     )[BG_UPLOAD_KEEP_PER_PANEL:]
     for name in stale:
@@ -394,6 +398,12 @@ class BmsPanelBgUploadView(HomeAssistantView):
             hass = request.app[KEY_HASS]
         except (ImportError, KeyError):
             hass = request.app["hass"]
+        # Только администраторы HA могут писать файлы на диск сервера. Раньше
+        # requires_auth пускал ЛЮБОГО залогиненного пользователя → он мог
+        # заполнять диск. hass_user проставлен, т.к. requires_auth=True.
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            return self.json({"error": "Требуются права администратора"}, status_code=401)
         data = await request.post()
         file_field = data.get("file")
         panel_id = str(data.get("panel_id") or "").strip()
@@ -744,6 +754,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
-        # Не трогаем panels/configs/meta — они переживут reload.
         hass.data[DOMAIN].pop("add_entities", None)
+        # configs/meta (ДАННЫЕ) переживают reload. Но "panels" — это реестр
+        # сенсорных ОБЪЕКТОВ, которые платформа только что уничтожила. Раньше мы
+        # его сохраняли → на reload async_setup_entry видел panel_id в "panels" и
+        # пропускал пересоздание: сенсоры панелей исчезали до перезапуска HA.
+        # Чистим реестр — на reload сенсоры создадутся заново из meta.
+        hass.data[DOMAIN]["panels"] = {}
     return ok
