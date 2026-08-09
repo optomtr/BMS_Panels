@@ -43,7 +43,12 @@ SCREEN_ITEM_SCHEMA = vol.Schema({
     vol.Optional("label"):   str,
 })
 
-SCREENS_SCHEMA = vol.Schema({k: SCREEN_ITEM_SCHEMA for k in SCREEN_KEYS})
+# REMOVE_EXTRA: неизвестный экран-ключ из будущего/старого билда молча
+# отбрасывается, а не роняет валидацию (иначе спасательный проход в
+# normalize_config выкинул бы ВЕСЬ screens и панель осталась б без экранов).
+SCREENS_SCHEMA = vol.Schema(
+    {k: SCREEN_ITEM_SCHEMA for k in SCREEN_KEYS}, extra=vol.REMOVE_EXTRA
+)
 
 HOME_NAV_SCHEMA = vol.All(
     list,
@@ -106,7 +111,8 @@ def _bind_value(meta):
 
 ENTITIES_SCHEMA = vol.Schema({
     vol.Optional(key): _bind_value(meta) for key, meta in BIND_KEYS.items()
-})
+}, extra=vol.REMOVE_EXTRA)  # чужой ключ (напр. climate_presets из старых билдов
+# внутри entities) отбрасывается, а не стирает все привязки устройств.
 
 
 # ---------- Custom Cards (пользовательские плитки в Menu) ----------
@@ -383,13 +389,15 @@ def _autofix_home_nav(cfg: dict) -> None:
     screens = cfg.get("screens", {}) or {}
     fixed = []
     for item in cfg["home_nav"]:
-        if item == "menu":
-            fixed.append("menu")
-        elif item in HOME_NAV_OPTIONS and screens.get(item, {}).get("enabled"):
-            fixed.append(item)
-        else:
-            fixed.append("menu")
-    cfg["home_nav"] = fixed
+        keep = item if (item != "menu"
+                        and item in HOME_NAV_OPTIONS
+                        and screens.get(item, {}).get("enabled")) else "menu"
+        # Не плодим дубли «menu»: если несколько иконок ссылались на выключенные
+        # экраны, все схлопывались в menu → на панели висели одинаковые «Ещё».
+        if keep == "menu" and "menu" in fixed:
+            continue
+        fixed.append(keep)
+    cfg["home_nav"] = fixed or ["menu"]
 
 
 def normalize_config(raw: dict | None) -> dict:
