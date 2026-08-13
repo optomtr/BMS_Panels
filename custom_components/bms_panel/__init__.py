@@ -735,9 +735,26 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             vol.Optional("copy_entities"):   cv.boolean,
         })),
     ]
+    def _admin_only(handler):
+        """Обёртка: создание/удаление/сброс панелей — только администраторам HA.
+        Раньше любой аутентифицированный пользователь мог дёрнуть сервис вручную
+        и, например, удалить панель. context.user_id пуст у автоматизаций/скриптов
+        (внутренний вызов) — их пропускаем как раньше."""
+        async def wrapper(call: ServiceCall) -> None:
+            uid = getattr(call.context, "user_id", None)
+            if uid:
+                user = await hass.auth.async_get_user(uid)
+                if user is None or not user.is_admin:
+                    raise HomeAssistantError(
+                        "Управление панелями BMS доступно только администраторам Home Assistant"
+                    )
+            await handler(call)
+        wrapper.__name__ = getattr(handler, "__name__", "service")
+        return wrapper
+
     for name, func, schema in services:
         # async_register идемпотентен — повторная регистрация перезаписывает.
-        hass.services.async_register(DOMAIN, name, func, schema=schema)
+        hass.services.async_register(DOMAIN, name, _admin_only(func), schema=schema)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -4,3 +4,7 @@ __pycache__/
 *.swp
 .idea/
 .vscode/
+
+# ruflo/claude-flow служебные данные — не часть интеграции
+.claude-flow/
+**/.claude-flow/
