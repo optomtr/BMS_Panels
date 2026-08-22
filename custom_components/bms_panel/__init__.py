@@ -53,6 +53,7 @@ from .const import (
     STORAGE_VERSION_MAJOR,
     STORAGE_VERSION_MINOR,
 )
+from .pairing import async_forget_panel_devices, async_register_pairing
 from .schemas import migrate_storage, normalize_config
 from .validation import has_errors, summary as validation_summary, validate
 
@@ -260,6 +261,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         except (AttributeError, TypeError):
             hass.http.register_static_path(BG_UPLOAD_URL_PREFIX, bg_dir, cache_headers=False)
         hass.http.register_view(BmsPanelBgUploadView())
+
+        # Привязка панели по QR: ручки без авторизации (у панели ещё нет токена)
+        # + admin-команды подтверждения. Подробности — в pairing.py.
+        async_register_pairing(hass, _taken_panel_ids)
         hass.data[DOMAIN]["bg_upload_registered"] = True
 
     # ---- Cache-busting: version из manifest.json ----
@@ -643,6 +648,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 hass.data[DOMAIN]["meta"][panel_id] = old_meta
             _LOGGER.exception("remove_panel save failed, rolled back in-memory")
             raise HomeAssistantError(f"Не удалось сохранить: {exc}") from exc
+        # Забываем и «личность» устройства: иначе снятая со стены панель
+        # бесконечно сохраняла бы право выпускать себе ключи доступа к дому.
+        try:
+            forgotten = await async_forget_panel_devices(hass, panel_id)
+            if forgotten:
+                _LOGGER.info(
+                    "Панель '%s': отозвана личность устройства (%d)", panel_id, forgotten
+                )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("Не удалось забыть устройство панели '%s': %s", panel_id, exc)
         _LOGGER.info("Removed panel '%s'", panel_id)
 
     async def clone_panel(call: ServiceCall) -> None:

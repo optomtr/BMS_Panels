@@ -56,11 +56,15 @@ BIND_KEYS = {
     "windows":         {"multi": True,  "domain": "cover",        "requires_screen": "window"},
     "media_players":   {"multi": True,  "domain": "media_player", "requires_screen": "music"},
 
-    # Климат — multi по типу
-    "acs":             {"multi": True,  "domain": "climate",      "requires_screen": "ac"},
-    "heatings":        {"multi": True,  "domain": "climate",      "requires_screen": "heating"},
-    "floors":          {"multi": True,  "domain": "climate",      "requires_screen": "floor"},
-    "convectors":      {"multi": True,  "domain": "climate",      "requires_screen": "convector"},
+    # Климат — multi по типу.
+    # extra_domains: кроме термостата разрешено привязать сам пускатель обогрева
+    # (реле). Нужно, когда у тёплого пола нет датчика температуры или датчик умер:
+    # термостат без датчика не включается вовсе, и обогрев было нечем поднять.
+    # Панель в этом случае показывает простую кнопку «ВКЛ/ВЫКЛ».
+    "acs":             {"multi": True,  "domain": "climate", "extra_domains": ["switch", "input_boolean"],      "requires_screen": "ac"},
+    "heatings":        {"multi": True,  "domain": "climate", "extra_domains": ["switch", "input_boolean"],      "requires_screen": "heating"},
+    "floors":          {"multi": True,  "domain": "climate", "extra_domains": ["switch", "input_boolean"],      "requires_screen": "floor"},
+    "convectors":      {"multi": True,  "domain": "climate", "extra_domains": ["switch", "input_boolean"],      "requires_screen": "convector"},
 
     # Вентиляция
     "ventilation_fans":{"multi": True,  "domain": "fan",          "requires_screen": "ventilation"},

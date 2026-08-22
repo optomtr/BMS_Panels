@@ -254,13 +254,19 @@ def validate(
                 ))
                 continue
 
-            # домен
+            # домен. Кроме основного разрешены запасные (extra_domains): к экранам
+            # обогрева можно привязать сам пускатель (реле) вместо термостата —
+            # это единственный способ поднять тёплый пол, у которого нет датчика
+            # температуры или датчик умер.
             domain = meta["domain"]
-            if not eid.startswith(domain + "."):
+            allowed = [domain, *meta.get("extra_domains", [])]
+            actual = eid.split(".", 1)[0]
+            if actual not in allowed:
+                readable = ", ".join(f"`{d}.*`" for d in allowed)
                 issues.append(Issue(
                     f"V_domain_{bk}_{eid}", SEV_ERROR,
-                    f"«{eid}» не из домена `{domain}.*`.",
-                    f"Выберите entity из `{domain}.*` — иначе функция не будет работать.",
+                    f"«{eid}» не из домена {readable}.",
+                    f"Выберите entity из {readable} — иначе функция не будет работать.",
                     {"type": "bind_card", "key": bk, "entity_id": eid},
                 ))
                 continue
@@ -286,7 +292,7 @@ def validate(
             # ---- Более глубокие проверки атрибутов по доменам ----
             attrs = _attrs(states, eid)
 
-            if domain == "climate":
+            if domain == "climate" and actual == "climate":
                 modes = attrs.get("hvac_modes") if attrs else None
                 if not modes:
                     issues.append(Issue(

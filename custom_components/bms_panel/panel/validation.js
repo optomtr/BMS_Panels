@@ -32,10 +32,10 @@ export const BIND_KEYS = {
   lights:           { multi: true,  domain: 'light',        requiresScreen: 'light'       },
   curtains:         { multi: true,  domain: 'cover',        requiresScreen: 'curtain'     },
   media_players:    { multi: true,  domain: 'media_player', requiresScreen: 'music'       },
-  acs:              { multi: true,  domain: 'climate',      requiresScreen: 'ac'          },
-  heatings:         { multi: true,  domain: 'climate',      requiresScreen: 'heating'     },
-  floors:           { multi: true,  domain: 'climate',      requiresScreen: 'floor'       },
-  convectors:       { multi: true,  domain: 'climate',      requiresScreen: 'convector'   },
+  acs:              { multi: true,  domain: 'climate', extraDomains: ['switch','input_boolean'],      requiresScreen: 'ac'          },
+  heatings:         { multi: true,  domain: 'climate', extraDomains: ['switch','input_boolean'],      requiresScreen: 'heating'     },
+  floors:           { multi: true,  domain: 'climate', extraDomains: ['switch','input_boolean'],      requiresScreen: 'floor'       },
+  convectors:       { multi: true,  domain: 'climate', extraDomains: ['switch','input_boolean'],      requiresScreen: 'convector'   },
   windows:          { multi: true,  domain: 'cover',        requiresScreen: 'window' },
   ventilation_fans: { multi: true,  domain: 'fan',          requiresScreen: 'ventilation' },
   co2_sensor:       { multi: false, domain: 'sensor',       requiresScreen: 'ventilation' },
@@ -199,10 +199,14 @@ export function validate(cfg, panelId, allPanels, hassStates) {
       }
 
       // Домен
-      if (!eid.startsWith(meta.domain + '.')) {
+      // Кроме основного домена разрешены запасные: к обогреву можно привязать
+      // сам пускатель (реле) вместо термостата — единственный способ включить
+      // тёплый пол без датчика температуры.
+      const allowedDomains = [meta.domain, ...(meta.extraDomains || [])];
+      if (!allowedDomains.some(d => eid.startsWith(d + '.'))) {
         out.push(makeIssue(`V_domain_${bk}_${eid}`, SEV_ERROR,
-          `«${eid}» не из домена ${meta.domain}.*.`,
-          `Выберите entity ${meta.domain}.* — иначе не будет работать.`,
+          `«${eid}» не из домена ${allowedDomains.map(d => d + '.*').join(' или ')}.`,
+          `Выберите entity ${allowedDomains.map(d => d + '.*').join(' / ')} — иначе не будет работать.`,
           { type: 'bind_card', key: bk, entity_id: eid }));
         continue;
       }
@@ -224,7 +228,7 @@ export function validate(cfg, panelId, allPanels, hassStates) {
 
       // ---- D. Атрибуты по доменам ----
       const a = st.attributes || {};
-      if (meta.domain === 'climate') {
+      if (meta.domain === 'climate' && eid.startsWith('climate.')) {
         const modes = a.hvac_modes;
         if (!Array.isArray(modes) || modes.length === 0) {
           out.push(makeIssue(`V26_${eid}`, SEV_ERROR,

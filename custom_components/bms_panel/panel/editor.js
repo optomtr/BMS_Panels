@@ -1705,6 +1705,12 @@ class BMSPanelEditor extends HTMLElement {
   set route(_) {}
   set panel(_) {}
 
+  disconnectedCallback() {
+    // Ушли со страницы (сайдбар HA, закрытие вкладки) — гасим камеру и опрос.
+    if (this._modalCleanup) { try { this._modalCleanup(); } catch (_) {} this._modalCleanup = null; }
+    if (super.disconnectedCallback) super.disconnectedCallback();
+  }
+
   _renderShell() {
     this.shadowRoot.innerHTML = `
       <style>${STYLES}</style>
@@ -1713,6 +1719,9 @@ class BMSPanelEditor extends HTMLElement {
         <div class="toolbar-title">BMS Smart Panel</div>
         <span id="save-counts"></span>
         <span id="save-label" style="font-size: 13px; opacity: 0.85;">Сохранено</span>
+        <button class="icon-btn" id="btn-pair" title="Подключить панель по QR">
+          <ha-icon icon="mdi:qrcode-scan"></ha-icon>
+        </button>
         <button class="icon-btn" id="btn-help" title="Помощь">
           <ha-icon icon="mdi:help-circle-outline"></ha-icon>
         </button>
@@ -1728,6 +1737,19 @@ class BMSPanelEditor extends HTMLElement {
       <div id="toast-root"></div>
     `;
     this.shadowRoot.getElementById('btn-help').onclick = () => this._showHelp();
+    this.shadowRoot.getElementById('btn-pair').onclick = () => this._showPairPanel();
+
+    // Переход по QR с экрана панели: ссылка вида /bms-panels?pair=CK8ZET —
+    // открываем диалог сразу с подставленным кодом, чтобы установщику осталось
+    // выбрать комнату. Параметр из адреса убираем, иначе он всплывёт снова
+    // при следующем открытии страницы.
+    try {
+      const fromQr = new URLSearchParams(window.location.search).get('pair');
+      if (fromQr) {
+        history.replaceState(null, '', window.location.pathname);
+        setTimeout(() => this._showPairPanel(fromQr.trim().toUpperCase()), 300);
+      }
+    } catch (_) { /* адрес без параметров — обычный случай */ }
   }
 
   // ---------- Получение всех панелей из hass.states ----------
@@ -2594,7 +2616,7 @@ class BMSPanelEditor extends HTMLElement {
     const meta = BIND_KEYS[bindDef.key];
     const current = entities[bindDef.key] || '';
     const opts = Object.entries(this._hass.states)
-      .filter(([eid]) => eid.startsWith(meta.domain + '.'))
+      .filter(([eid]) => [meta.domain, ...(meta.extraDomains || [])].some(d => eid.startsWith(d + '.')))
       .map(([eid, s]) => ({ id: eid, name: s.attributes.friendly_name || eid, state: s.state }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -2637,7 +2659,7 @@ class BMSPanelEditor extends HTMLElement {
     // Карта занятости entity_id другими панелями
     const occupied = this._entityOccupiedMap();
     const all = Object.entries(this._hass.states)
-      .filter(([eid]) => eid.startsWith(meta.domain + '.'))
+      .filter(([eid]) => [meta.domain, ...(meta.extraDomains || [])].some(d => eid.startsWith(d + '.')))
       .map(([eid, s]) => ({
         id: eid,
         name: s.attributes.friendly_name || eid,
@@ -3673,11 +3695,198 @@ class BMSPanelEditor extends HTMLElement {
   // ============ MODALS ============
 
   _showModal(html, onMount) {
+    // За предыдущим окном могла остаться работа: опрос сервера, включённая
+    // камера. innerHTML их не гасит — гасим явно, иначе камера телефона
+    // осталась бы гореть после ухода со страницы.
+    if (this._modalCleanup) { try { this._modalCleanup(); } catch (_) {} this._modalCleanup = null; }
     const root = this.shadowRoot.getElementById('modal-root');
     root.innerHTML = `<div class="modal-backdrop" id="bk">${html}</div>`;
     const close = () => { root.innerHTML = ''; };
     root.querySelector('#bk').onclick = e => { if (e.target.id === 'bk') close(); };
     if (onMount) onMount(root, close);
+    return close;
+  }
+
+  // ---------- Подключение панели по QR ----------
+
+  /**
+   * Диалог подтверждения привязки. Панель показывает у себя на экране код;
+   * здесь его либо сканируют камерой, либо выбирают панель из списка ждущих,
+   * либо набирают шесть символов руками.
+   *
+   * Токен панели выпускает сервер в момент подтверждения — здесь он не виден
+   * и через браузер не проходит.
+   */
+  _showPairPanel(prefillCode = '') {
+    const panels = this._allPanels();
+    if (!panels.length) {
+      this._toast('Сначала создайте панель — к ней и будет привязан планшет', 'error');
+      return;
+    }
+    // Камера в браузере работает только на защищённом соединении (https или
+    // localhost). На объекте по локальному http её не будет — тогда остаются
+    // список ждущих и ручной ввод, они работают всегда.
+    const canScan = !!(window.BarcodeDetector && window.isSecureContext &&
+      navigator.mediaDevices?.getUserMedia);
+
+    const close = this._showModal(`
+      <div class="modal" style="max-width: 460px;">
+        <h3>Подключить панель</h3>
+        <p style="color: var(--secondary-text-color); font-size: 13px; margin: 0 0 14px; line-height: 1.45;">
+          На экране новой панели показан QR и код из шести символов.
+          Адрес сервера и токен вводить не нужно — панель получит их сама.
+        </p>
+
+        <div id="pair-waiting" style="margin-bottom: 14px;"></div>
+
+        ${canScan ? `
+        <button class="btn" id="pair-scan" style="width: 100%; margin-bottom: 10px;">
+          <ha-icon icon="mdi:camera"></ha-icon>&nbsp;Сканировать камерой
+        </button>
+        <video id="pair-video" playsinline muted
+               style="display: none; width: 100%; border-radius: 8px; background: #000; margin-bottom: 10px;"></video>
+        ` : `
+        <p style="font-size: 12px; color: var(--secondary-text-color); margin: 0 0 10px;">
+          Сканирование камерой доступно, когда Home Assistant открыт по https.
+          Сейчас введите код с экрана панели.
+        </p>
+        `}
+
+        <div class="field-row">
+          <label>Код с экрана панели</label>
+          <input type="text" id="pair-code" class="control" maxlength="6" autocomplete="off"
+                 placeholder="K7P2QM" value="${esc(prefillCode)}"
+                 style="text-transform: uppercase; letter-spacing: 2px; font-family: monospace;">
+        </div>
+        <div class="field-row">
+          <label>Какая это панель</label>
+          <select id="pair-panel" class="control">
+            ${panels.map(p => `<option value="${esc(p.panel_id)}">${esc(p.name || p.panel_id)}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" id="pair-cancel">Отмена</button>
+          <button class="btn primary" id="pair-ok">Подключить</button>
+        </div>
+      </div>
+    `, (root, closeFn) => {
+      const codeInp = root.querySelector('#pair-code');
+      const panelSel = root.querySelector('#pair-panel');
+      let stopScan = null;
+      let pollTimer = null;
+
+      const shutdown = () => {
+        if (stopScan) { stopScan(); stopScan = null; }
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      };
+      const closeAll = () => { shutdown(); this._modalCleanup = null; closeFn(); };
+      // Уход со страницы или открытие другого окна тоже должны гасить камеру.
+      this._modalCleanup = shutdown;
+
+      root.querySelector('#pair-cancel').onclick = closeAll;
+      // Клик мимо окна закрывает его силами _showModal — но камеру и опрос
+      // выключить некому. Без этого камера телефона осталась бы включённой.
+      const backdrop = root.querySelector('#bk');
+      const backdropClose = backdrop.onclick;
+      backdrop.onclick = (e) => { if (e.target.id === 'bk') shutdown(); backdropClose(e); };
+      codeInp.oninput = () => {
+        codeInp.value = codeInp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      };
+
+      // Список ждущих панелей — обновляем, пока диалог открыт. Обычно там ровно
+      // одна панель, и установщику достаточно нажать на неё.
+      const waitBox = root.querySelector('#pair-waiting');
+      const refreshWaiting = async () => {
+        let list = [];
+        try {
+          list = await this._hass.callWS({ type: 'bms_panel/pair_list' });
+        } catch (_) {
+          waitBox.innerHTML = '';
+          return;
+        }
+        if (!list.length) {
+          waitBox.innerHTML = `<div style="font-size: 12px; color: var(--secondary-text-color);">
+            Ждущих панелей нет. Включите панель — она сама покажет код.
+          </div>`;
+          return;
+        }
+        waitBox.innerHTML = `
+          <div style="font-size: 12px; color: var(--secondary-text-color); margin-bottom: 6px;">
+            Ждут подключения:
+          </div>
+          ${list.map(w => `
+            <button class="btn" data-pair-code="${esc(w.code)}"
+                    style="width: 100%; justify-content: space-between; margin-bottom: 6px;">
+              <span>${esc(w.name)}</span>
+              <span style="font-family: monospace; letter-spacing: 1px;">${esc(w.code)}</span>
+            </button>
+          `).join('')}
+        `;
+        waitBox.querySelectorAll('[data-pair-code]').forEach(btn => {
+          btn.onclick = () => { codeInp.value = btn.dataset.pairCode; };
+        });
+      };
+      refreshWaiting();
+      pollTimer = setInterval(refreshWaiting, 3000);
+
+      if (canScan) {
+        root.querySelector('#pair-scan').onclick = async () => {
+          const video = root.querySelector('#pair-video');
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment' },
+            });
+            video.style.display = 'block';
+            video.srcObject = stream;
+            await video.play();
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            let alive = true;
+            stopScan = () => {
+              alive = false;
+              stream.getTracks().forEach(t => t.stop());
+              video.style.display = 'none';
+            };
+            const tick = async () => {
+              if (!alive) return;
+              try {
+                const codes = await detector.detect(video);
+                const raw = codes[0]?.rawValue || '';
+                // В QR — ссылка вида .../bms-panels?pair=CK8ZET
+                const found = (raw.match(/pair=([A-Z0-9]{4,8})/i) || [])[1];
+                if (found) {
+                  codeInp.value = found.toUpperCase();
+                  stopScan(); stopScan = null;
+                  return;
+                }
+              } catch (_) { /* кадр не распознан — пробуем следующий */ }
+              setTimeout(tick, 400);
+            };
+            tick();
+          } catch (err) {
+            this._toast('Камера недоступна: ' + (err?.message || 'нет доступа'), 'error');
+          }
+        };
+      }
+
+      root.querySelector('#pair-ok').onclick = async () => {
+        const code = codeInp.value.trim().toUpperCase();
+        const panelId = panelSel.value;
+        if (code.length < 4) { this._toast('Введите код с экрана панели', 'error'); return; }
+        try {
+          const res = await this._hass.callWS({
+            type: 'bms_panel/pair_approve', code, panel_id: panelId,
+          });
+          closeAll();
+          this._toast(
+            `Панель «${res.name}» подключена к «${panelId}». Через пару секунд она сама выйдет на связь.`,
+            'success', { duration: 6000 },
+          );
+        } catch (err) {
+          this._toast(err?.message || 'Не удалось подключить панель', 'error');
+        }
+      };
+    });
     return close;
   }
 
