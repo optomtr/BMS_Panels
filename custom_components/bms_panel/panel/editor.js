@@ -511,6 +511,20 @@ input[type=range] { width: 100%; }
   color: var(--secondary-text-color);
   margin-bottom: 12px;
 }
+.bind-order {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--divider-color);
+  border-radius: 8px;
+}
+.bind-order-title { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 6px; }
+.bind-order-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.bind-order-item .ord-num {
+  min-width: 20px; text-align: center; font-size: 12px;
+  color: var(--secondary-text-color);
+}
+.bind-order-item .ord-nm { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bind-order-item .btn { padding: 2px 6px; }
 .bind-card {
   border: 1px solid var(--divider-color);
   border-radius: 8px;
@@ -2705,6 +2719,7 @@ class BMSPanelEditor extends HTMLElement {
               `).join('')}
             </div>`
         }
+        ${this._renderBindOrder(bindDef.key, selected, all)}
         ${bindDef.key === 'curtains' ? this._renderCurtainReverse(selected, cfg) : ''}
         ${bindIssues.map(i => `
           <div class="inline-issue ${i.severity}">
@@ -2721,6 +2736,39 @@ class BMSPanelEditor extends HTMLElement {
    * (Открыть физически закрывает). APK меняет open↔close для этих entity.
    * Показываем только выбранные шторы.
    */
+  /**
+   * Порядок устройств на экране панели.
+   *
+   * Панель рисует устройства РОВНО в том порядке, в каком они лежат в конфиге,
+   * а туда они попадали в порядке проставления галочек — увидеть и изменить это
+   * было нельзя. Клиент на стене видит первой ту лампу, которую установщик
+   * случайно отметил первой; чтобы поменять, приходилось снимать все галочки и
+   * расставлять заново. Здесь список выбранных с кнопками вверх/вниз.
+   */
+  _renderBindOrder(key, selected, all) {
+    if (!selected || selected.length < 2) return '';   // порядок из одного — не порядок
+    const nameById = new Map((all || []).map(o => [o.id, o.name]));
+    return `
+      <div class="bind-order">
+        <div class="bind-order-title">Порядок на панели</div>
+        ${selected.map((eid, i) => `
+          <div class="bind-order-item">
+            <span class="ord-num">${i + 1}</span>
+            <span class="ord-nm">${esc(nameById.get(eid) || eid)}</span>
+            <button class="btn ghost ord-move" data-key="${esc(key)}" data-idx="${i}" data-dir="up"
+                    title="Выше" ${i === 0 ? 'disabled' : ''}>
+              <ha-icon icon="mdi:arrow-up" style="--mdc-icon-size:16px;"></ha-icon>
+            </button>
+            <button class="btn ghost ord-move" data-key="${esc(key)}" data-idx="${i}" data-dir="down"
+                    title="Ниже" ${i === selected.length - 1 ? 'disabled' : ''}>
+              <ha-icon icon="mdi:arrow-down" style="--mdc-icon-size:16px;"></ha-icon>
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   _renderCurtainReverse(selected, cfg) {
     if (!selected || selected.length === 0) return '';
     const reversed = Array.isArray(cfg.curtain_reverse) ? cfg.curtain_reverse : [];
@@ -3269,6 +3317,21 @@ class BMSPanelEditor extends HTMLElement {
           return;
         }
         this._markDirty();
+      };
+    });
+
+    // ---- Порядок устройств на панели ----
+    $$('.ord-move').forEach(btn => {
+      btn.onclick = () => {
+        const key = btn.dataset.key;
+        const i = parseInt(btn.dataset.idx, 10);
+        const arr = Array.isArray(cfg.entities[key]) ? cfg.entities[key].slice() : [];
+        const j = btn.dataset.dir === 'up' ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        cfg.entities[key] = arr;
+        this._markDirty();
+        this._renderContent();   // перерисовываем: сместились номера и доступность стрелок
       };
     });
 
