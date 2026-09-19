@@ -31,13 +31,19 @@ CONFIG_SCHEMA_VERSION = 3  # +climate_presets (v2.3.0)
 
 # ---- Экраны панели ----
 # id → meta. Android читает по id; UI берёт label/icon отсюда.
-SCREEN_KEYS = ["light", "curtain", "window", "music", "ac", "heating", "floor", "convector", "ventilation"]
+SCREEN_KEYS = [
+    "light", "curtain", "window", "music", "ac", "heating", "floor", "convector", "ventilation",
+    # Новые разделы (контракт SPEC-new-sections): у существующих панелей выключены
+    # по умолчанию — после обновления у клиентов в меню ничего не появляется само.
+    "energy", "pool", "irrigation", "garage", "automations",
+]
 
 # ---- Иконки нижнего ряда главного экрана ----
-# Все 9 разделов (1-в-1 с APK NAV_DEFS и editor.js HOME_NAV_OPTIONS).
+# Все разделы (1-в-1 с APK NAV_DEFS и validation.js HOME_NAV_OPTIONS — сверяет
+# Android-тест NavListsInSyncTest; список держать В ОДНУ СТРОКУ, тест так его разбирает).
 # Раньше отсутствовали floor/convector → voluptuous-схема (vol.In) отвергала их
 # при сохранении и заменяла на default ('menu').
-HOME_NAV_OPTIONS = ["light", "curtain", "window", "menu", "music", "ac", "heating", "floor", "convector", "ventilation"]
+HOME_NAV_OPTIONS = ["light", "curtain", "window", "menu", "music", "ac", "heating", "floor", "convector", "ventilation", "energy", "pool", "irrigation", "garage", "automations"]
 # Можно поставить от 1 до 5 иконок (APK рендерит ровно столько, сколько задано).
 # Раньше жёстко требовалось 5 → лишние слоты заполнялись «menu» и на панели
 # торчали кнопки «Ещё», даже когда добавлять было нечего.
@@ -69,6 +75,34 @@ BIND_KEYS = {
     # Вентиляция
     "ventilation_fans":{"multi": True,  "domain": "fan",          "requires_screen": "ventilation"},
     "co2_sensor":      {"multi": False, "domain": "sensor",       "requires_screen": "ventilation"},
+
+    # ---- Новые разделы. Порядок в массиве = порядок на экране панели
+    # (для фаз: 1-й элемент = «Фаза 1»).
+    # Энергия — только просмотр. Почасовой график и «пик за сутки» панель берёт
+    # из статистики HA (recorder) по energy_total / energy_power.
+    "energy_power":          {"multi": False, "domain": "sensor", "requires_screen": "energy"},
+    "energy_phases_power":   {"multi": True,  "domain": "sensor", "requires_screen": "energy"},
+    "energy_phases_voltage": {"multi": True,  "domain": "sensor", "requires_screen": "energy"},
+    "energy_phases_current": {"multi": True,  "domain": "sensor", "requires_screen": "energy"},
+    "energy_total":          {"multi": False, "domain": "sensor", "requires_screen": "energy"},
+    "energy_month":          {"multi": False, "domain": "sensor", "requires_screen": "energy"},
+    # Бассейн — любое оборудование, которое включается/выключается.
+    "pool_devices":          {"multi": True,  "domain": "switch", "extra_domains": ["input_boolean", "light", "fan"], "requires_screen": "pool"},
+    # Полив — зоны (реле, клапаны valve.*) + необязательные датчики почвы.
+    "irrigation_zones":      {"multi": True,  "domain": "switch", "extra_domains": ["valve", "input_boolean"], "requires_screen": "irrigation"},
+    "soil_temp_sensor":      {"multi": False, "domain": "sensor", "requires_screen": "irrigation"},
+    "soil_moisture_sensor":  {"multi": False, "domain": "sensor", "requires_screen": "irrigation"},
+    "soil_ec_sensor":        {"multi": False, "domain": "sensor", "requires_screen": "irrigation"},
+    # Гараж — ворота/двери (cover) и электрозамки калиток (lock).
+    "gates":                 {"multi": True,  "domain": "cover", "extra_domains": ["lock"], "requires_screen": "garage"},
+    # Импульсные ворота: одна кнопка по кругу «открыть → стоп → закрыть».
+    # gate_pulse_sensors — необязательные концевики, по ИНДЕКСУ к gate_pulses
+    # (i-й датчик = i-е ворота, on = открыто).
+    "gate_pulses":           {"multi": True,  "domain": "button", "extra_domains": ["input_button", "switch", "script"], "requires_screen": "garage"},
+    "gate_pulse_sensors":    {"multi": True,  "domain": "binary_sensor", "requires_screen": "garage"},
+    # Автоматизации — сценарии (scene/script) и расписания (automation).
+    "scenes":                {"multi": True,  "domain": "scene", "extra_domains": ["script"], "requires_screen": "automations"},
+    "automations":           {"multi": True,  "domain": "automation", "requires_screen": "automations"},
 
     # Главный экран — датчики
     "temp_sensor":     {"multi": False, "domain": "sensor",       "requires_screen": None},
@@ -169,6 +203,12 @@ DEFAULT_CONFIG = {
         "convector":   {"enabled": False, "order": 7, "label": "Convector"},
         "ventilation": {"enabled": False, "order": 8, "label": "Ventilation"},
         "window":      {"enabled": False, "order": 9, "label": "Window"},
+        # Новые разделы — выключены, пока интегратор сам не включит.
+        "energy":      {"enabled": False, "order": 9,  "label": "Energy"},
+        "pool":        {"enabled": False, "order": 10, "label": "Pool"},
+        "irrigation":  {"enabled": False, "order": 11, "label": "Irrigation"},
+        "garage":      {"enabled": False, "order": 12, "label": "Garage"},
+        "automations": {"enabled": False, "order": 13, "label": "Automations"},
     },
     # home_nav по умолчанию: light (включён) + menu для доступа к остальным экранам.
     # Интегратор добавляет ещё иконки (до 5) под конкретный объект — лишние слоты
@@ -203,11 +243,19 @@ DEFAULT_CONFIG = {
 }
 
 # ---- Сервисы ----
-SERVICE_UPDATE_CONFIG = "update_config"
-SERVICE_RESET_CONFIG  = "reset_config"
-SERVICE_ADD_PANEL     = "add_panel"
-SERVICE_REMOVE_PANEL  = "remove_panel"
-SERVICE_CLONE_PANEL   = "clone_panel"
+SERVICE_UPDATE_CONFIG      = "update_config"
+SERVICE_RESET_CONFIG       = "reset_config"
+SERVICE_ADD_PANEL          = "add_panel"
+SERVICE_REMOVE_PANEL       = "remove_panel"
+SERVICE_CLONE_PANEL        = "clone_panel"
+# Автоустановка на заводскую Linux-панель по сети — см. provisioning.py.
+SERVICE_DISCOVER_PANELS    = "discover_factory_panels"
+SERVICE_INSTALL_PANEL      = "install_panel"
+
+# Событие HA с ходом автоустановки на заводскую панель (provisioning.py).
+# Данные: {job, ip, step, text, done, error, panel_id}. Шаги — те же, что
+# пишутся в уведомление: отдельного «языка шагов» для UI не заводим.
+EVENT_INSTALL_PROGRESS = f"{DOMAIN}_install_progress"
 
 # Сигналы dispatcher_send — service → sensor (избегаем race на async_added_to_hass)
 SIGNAL_CONFIG_UPDATED = f"{DOMAIN}_config_updated"  # arg: panel_id
@@ -219,3 +267,19 @@ STORAGE_KEY = "bms_panel.configs"
 
 # ---- Slug — только ASCII, чтобы entity_id всегда был валидным ----
 SLUG_REGEX = r"^[a-z0-9_-]{2,32}$"
+
+# ---- Автоустановка на заводскую Linux-панель — файлы релиза (provisioning.py) ----
+# Релизы (не исходники!) для скачивания провижининга: bmspanel/mtdflash/
+# res_new.sqfs/assets.tar.gz + подписанный manifest.txt. Тот же паттерн, что
+# у Android-обновлений (PANELAPK) — редирект releases/latest, не api.github.com
+# (без лимита запросов).
+PROVISION_REPO_OWNER = "optomtr"
+PROVISION_REPO_NAME = "PANEL_LINUX"
+
+# Публичный ключ Ed25519 (32 байта, base64) для проверки manifest.sig —
+# приватная половина НИГДЕ, кроме машины разработчика (linux/.release_signing_
+# key.pem, в git не попадает). Файлы принимаются, только если manifest.txt
+# подписан именно этим ключом, а контрольная сумма файла совпадает со строкой
+# в manifest.txt — иначе скомпрометированный релиз на GitHub означал бы root
+# на панели любого клиента. Смена ключа — см. предупреждение в tools/release.py.
+PROVISION_SIGNING_PUBKEY_B64 = "apwGUOIU8dvcmPCTO99InVVyrQ3LNcCThGveMQTJ/YY="

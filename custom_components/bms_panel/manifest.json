@@ -1,7 +1,7 @@
 {
   "domain": "bms_panel",
   "name": "BMS Smart Panel",
-  "version": "2.13.0",
+  "version": "2.15.0",
   "documentation": "https://github.com/optomtr/BMS_Panels",
   "issue_tracker": "https://github.com/optomtr/BMS_Panels/issues",
   "codeowners": [
@@ -13,7 +13,7 @@
     "panel_custom",
     "sensor"
   ],
-  "requirements": [],
+  "requirements": ["adb-shell[async]==0.4.4"],
   "iot_class": "local_push",
   "integration_type": "hub",
   "loggers": [

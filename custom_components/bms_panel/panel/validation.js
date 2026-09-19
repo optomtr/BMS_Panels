@@ -19,9 +19,9 @@ export const SEV_INFO  = 'info';
 const SLUG_RE = /^[a-z0-9_-]{2,32}$/;
 
 // ID нижнего ряда главного экрана. Должно совпадать с HOME_NAV_OPTIONS в const.py
-// и editor.js (все 9 разделов). Раньше было 7 → клиент-валидатор флагал
-// floor/convector как «неизвестно Android-приложению».
-export const HOME_NAV_OPTIONS = ['light','curtain','window','menu','music','ac','heating','floor','convector','ventilation'];
+// и APK NAV_DEFS (сверяет Android-тест NavListsInSyncTest — держать В ОДНУ СТРОКУ).
+// Раньше было 7 → клиент-валидатор флагал floor/convector как «неизвестно Android-приложению».
+export const HOME_NAV_OPTIONS = ['light','curtain','window','menu','music','ac','heating','floor','convector','ventilation','energy','pool','irrigation','garage','automations'];
 // От 1 до 5 иконок. Раньше требовалось ровно 5 → лишние слоты заполнялись «menu»
 // и на панели висели кнопки «Ещё». Теперь интегратор кладёт сколько нужно.
 const HOME_NAV_MIN_LEN = 1;
@@ -39,6 +39,24 @@ export const BIND_KEYS = {
   windows:          { multi: true,  domain: 'cover',        requiresScreen: 'window' },
   ventilation_fans: { multi: true,  domain: 'fan',          requiresScreen: 'ventilation' },
   co2_sensor:       { multi: false, domain: 'sensor',       requiresScreen: 'ventilation' },
+  // ---- Новые разделы (зеркало const.py). Порядок в массиве = порядок на экране.
+  energy_power:          { multi: false, domain: 'sensor', requiresScreen: 'energy' },
+  energy_phases_power:   { multi: true,  domain: 'sensor', requiresScreen: 'energy' },
+  energy_phases_voltage: { multi: true,  domain: 'sensor', requiresScreen: 'energy' },
+  energy_phases_current: { multi: true,  domain: 'sensor', requiresScreen: 'energy' },
+  energy_total:          { multi: false, domain: 'sensor', requiresScreen: 'energy' },
+  energy_month:          { multi: false, domain: 'sensor', requiresScreen: 'energy' },
+  pool_devices:          { multi: true,  domain: 'switch', extraDomains: ['input_boolean','light','fan'], requiresScreen: 'pool' },
+  irrigation_zones:      { multi: true,  domain: 'switch', extraDomains: ['valve','input_boolean'],      requiresScreen: 'irrigation' },
+  soil_temp_sensor:      { multi: false, domain: 'sensor', requiresScreen: 'irrigation' },
+  soil_moisture_sensor:  { multi: false, domain: 'sensor', requiresScreen: 'irrigation' },
+  soil_ec_sensor:        { multi: false, domain: 'sensor', requiresScreen: 'irrigation' },
+  gates:                 { multi: true,  domain: 'cover',  extraDomains: ['lock'],   requiresScreen: 'garage' },
+  // Импульсные ворота (одна кнопка) + необязательные концевики по индексу.
+  gate_pulses:           { multi: true,  domain: 'button', extraDomains: ['input_button','switch','script'], requiresScreen: 'garage' },
+  gate_pulse_sensors:    { multi: true,  domain: 'binary_sensor', requiresScreen: 'garage' },
+  scenes:                { multi: true,  domain: 'scene',  extraDomains: ['script'], requiresScreen: 'automations' },
+  automations:           { multi: true,  domain: 'automation',                       requiresScreen: 'automations' },
   temp_sensor:      { multi: false, domain: 'sensor',       requiresScreen: null          },
   humidity_sensor:  { multi: false, domain: 'sensor',       requiresScreen: null          },
   // Датчик температуры тёплого пола на главном экране (опционально).
@@ -53,7 +71,8 @@ export const BIND_KEYS = {
   convector_fan:           { multi: false, domain: 'fan',    requiresScreen: 'convector' },
 };
 
-export const SCREEN_KEYS = ['light','curtain','window','music','ac','heating','floor','convector','ventilation'];
+export const SCREEN_KEYS = ['light','curtain','window','music','ac','heating','floor','convector','ventilation',
+  'energy','pool','irrigation','garage','automations'];
 
 const SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600];
 const LANGUAGES = ['English', 'Русский'];

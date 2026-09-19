@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.11.1';
+import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.15.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -43,6 +43,12 @@ const SCREEN_META = {
   floor:       { icon: 'mdi:heating-coil',       ru: 'Тёплый пол',   en: 'Floor heat',  hint: 'Электрический/водяной тёплый пол' },
   convector:   { icon: 'mdi:radiator-disabled',  ru: 'Конвектор',    en: 'Convector',   hint: 'Конвекторы с вентилятором' },
   ventilation: { icon: 'mdi:fan',                ru: 'Вентиляция',   en: 'Ventilation', hint: 'Приточная вентиляция, CO₂' },
+  // Новые разделы (SPEC-new-sections). По умолчанию выключены.
+  energy:      { icon: 'mdi:lightning-bolt',     ru: 'Энергия',       en: 'Energy',      hint: 'Мощность, фазы, расход за сутки' },
+  pool:        { icon: 'mdi:pool',               ru: 'Бассейн',       en: 'Pool',        hint: 'Насосы, гидромассаж, подсветка' },
+  irrigation:  { icon: 'mdi:sprinkler-variant',  ru: 'Полив',         en: 'Irrigation',  hint: 'Зоны полива, датчики почвы' },
+  garage:      { icon: 'mdi:garage',             ru: 'Гараж',         en: 'Garage',      hint: 'Гаражные и въездные ворота, калитки' },
+  automations: { icon: 'mdi:robot-outline',      ru: 'Автоматизации', en: 'Automations', hint: 'Сценарии и расписания' },
 };
 
 // Все 9 разделов доступны для нижних иконок (1-в-1 с APK NAV_DEFS).
@@ -98,7 +104,43 @@ const BIND_GROUPS = [
       { key: 'ventilation_fans', label: 'Вентиляторы (приточные, вытяжные)' },
       { key: 'co2_sensor',       label: 'CO₂-сенсор (опц.)' },
     ] },
+  // ---- Новые разделы. Порядок выбора = порядок на панели (для фаз: первая
+  // отмеченная = «Фаза 1»).
+  { key: 'energy',      title: 'Энергия',        icon: 'mdi:lightning-bolt',    screen: 'energy',
+    binds: [
+      { key: 'energy_power',          label: 'Общая мощность сейчас (Вт / кВт)' },
+      { key: 'energy_phases_power',   label: 'Мощность по фазам (опц., до 3, по порядку)' },
+      { key: 'energy_phases_voltage', label: 'Напряжение по фазам (опц.)' },
+      { key: 'energy_phases_current', label: 'Ток по фазам (опц.)' },
+      { key: 'energy_total',          label: 'Счётчик энергии, кВт·ч — для графика за 24 ч' },
+      { key: 'energy_month',          label: 'Расход за месяц, кВт·ч (опц.)' },
+    ] },
+  { key: 'pool',        title: 'Бассейн',        icon: 'mdi:pool',              screen: 'pool',
+    binds: [{ key: 'pool_devices', label: 'Оборудование бассейна (реле, свет, насосы)' }] },
+  { key: 'irrigation',  title: 'Полив',          icon: 'mdi:sprinkler-variant', screen: 'irrigation',
+    binds: [
+      { key: 'irrigation_zones',     label: 'Зоны полива (реле или клапаны)' },
+      { key: 'soil_temp_sensor',     label: 'Температура почвы (опц.)' },
+      { key: 'soil_moisture_sensor', label: 'Влажность почвы (опц.)' },
+      { key: 'soil_ec_sensor',       label: 'Проводимость почвы, EC (опц.)' },
+    ] },
+  { key: 'garage',      title: 'Гараж',          icon: 'mdi:garage',            screen: 'garage',
+    binds: [
+      { key: 'gates',              label: 'Ворота и двери (cover), калитки (lock)' },
+      { key: 'gate_pulses',        label: 'Импульсные ворота (одна кнопка)' },
+      { key: 'gate_pulse_sensors', label: 'Датчики положения импульсных ворот (по порядку, необязательно)' },
+    ] },
+  { key: 'automations', title: 'Автоматизации',  icon: 'mdi:robot-outline',     screen: 'automations',
+    binds: [
+      { key: 'scenes',      label: 'Сценарии (scene / script) — запуск кнопкой' },
+      { key: 'automations', label: 'Расписания (automation) — вкл/выкл' },
+    ] },
 ];
+
+// Ключи, которые «Заполнить из комнаты» НЕ предлагает: это не устройства комнаты,
+// а общие для дома вещи (счётчик, бассейн, полив, ворота, сценарии). Иначе любой
+// датчик комнаты попадал бы сразу в 9 слотов энергии/почвы и включал эти экраны.
+const AREA_FILL_SKIP_SCREENS = new Set(['energy', 'pool', 'irrigation', 'garage', 'automations']);
 
 // ---------- Climate Presets ----------
 // 1-в-1 с const.py DEFAULT_CLIMATE_PRESETS / APK ClimateMoodPreset.
@@ -886,6 +928,51 @@ input[type=range] { width: 100%; }
   box-shadow: 0 12px 48px rgba(0,0,0,0.4);
 }
 .modal h3 { margin: 0 0 12px; font-weight: 500; }
+
+/* ---- Установка на заводскую панель по сети ---- */
+.inst-spinner {
+  width: 26px; height: 26px; flex: none;
+  border: 3px solid var(--divider-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: inst-spin 0.9s linear infinite;
+}
+@keyframes inst-spin { to { transform: rotate(360deg); } }
+.inst-row {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left;
+  padding: 10px 12px; margin-bottom: 8px;
+  border: 1px solid var(--divider-color); border-radius: 10px;
+  background: var(--card-background-color);
+  color: var(--primary-text-color);
+  font-size: 14px; font-family: inherit; cursor: pointer;
+}
+.inst-row:hover:not([disabled]) { border-color: var(--primary-color); }
+.inst-row.picked { border-color: var(--primary-color); }
+.inst-row .ip { font-family: monospace; }
+.inst-row .sub { font-size: 12px; color: var(--secondary-text-color); }
+.inst-row .grow { flex: 1; min-width: 0; }
+.inst-steps { margin: 4px 0 0; padding: 0; list-style: none; }
+.inst-steps li {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; line-height: 1.45; padding: 3px 0;
+  color: var(--secondary-text-color);
+}
+.inst-steps li.now { color: var(--primary-text-color); }
+.inst-steps li .mark { width: 16px; flex: none; text-align: center; }
+.inst-steps li.ok .mark { color: var(--bms-success); }
+.inst-steps li.fail .mark { color: var(--bms-error); }
+.inst-steps li.fail { color: var(--bms-error); }
+.inst-note {
+  font-size: 12px; color: var(--secondary-text-color);
+  line-height: 1.45; margin: 10px 0 0;
+}
+.inst-error {
+  color: var(--bms-error); font-size: 13px; line-height: 1.45;
+  border: 1px solid rgba(244, 67, 54, 0.3); border-radius: 8px;
+  padding: 10px 12px; margin: 4px 0 0;
+  white-space: pre-wrap; word-break: break-word;
+}
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 
 /* ---- Toast ---- */
@@ -1733,8 +1820,17 @@ class BMSPanelEditor extends HTMLElement {
         <div class="toolbar-title">BMS Smart Panel</div>
         <span id="save-counts"></span>
         <span id="save-label" style="font-size: 13px; opacity: 0.85;">Сохранено</span>
+        <button class="icon-btn" id="btn-license" title="Лицензия объекта">
+          <ha-icon icon="mdi:certificate"></ha-icon>
+        </button>
+        <button class="icon-btn" id="btn-apk" title="Обновление для панелей">
+          <ha-icon icon="mdi:cellphone-arrow-down"></ha-icon>
+        </button>
         <button class="icon-btn" id="btn-pair" title="Подключить панель по QR">
           <ha-icon icon="mdi:qrcode-scan"></ha-icon>
+        </button>
+        <button class="icon-btn" id="btn-install" title="Установить на заводскую панель по сети">
+          <ha-icon icon="mdi:download-network"></ha-icon>
         </button>
         <button class="icon-btn" id="btn-help" title="Помощь">
           <ha-icon icon="mdi:help-circle-outline"></ha-icon>
@@ -1752,6 +1848,9 @@ class BMSPanelEditor extends HTMLElement {
     `;
     this.shadowRoot.getElementById('btn-help').onclick = () => this._showHelp();
     this.shadowRoot.getElementById('btn-pair').onclick = () => this._showPairPanel();
+    this.shadowRoot.getElementById('btn-install').onclick = () => this._showInstallPanel();
+    this.shadowRoot.getElementById('btn-apk').onclick = () => this._showApkUpload();
+    this.shadowRoot.getElementById('btn-license').onclick = () => this._showLicense();
 
     // Переход по QR с экрана панели: ссылка вида /bms-panels?pair=CK8ZET —
     // открываем диалог сразу с подставленным кодом, чтобы установщику осталось
@@ -3780,6 +3879,131 @@ class BMSPanelEditor extends HTMLElement {
    * Токен панели выпускает сервер в момент подтверждения — здесь он не виден
    * и через браузер не проходит.
    */
+  /**
+   * Обновление для панелей — файл кладётся в ЭТОТ дом.
+   *
+   * Раньше панели тянули обновление с публичной страницы в интернете: скачать
+   * приложение мог кто угодно. Теперь файл лежит у клиента, а панель забирает
+   * его своим ключом. Никаких паролей в самом приложении для этого не нужно.
+   */
+  /**
+   * Лицензия объекта. Нужна, чтобы к этому дому можно было подключать НОВЫЕ
+   * панели. Уже работающие панели от лицензии не зависят никогда — дом клиента
+   * не должен вставать из-за неё.
+   */
+  _showLicense() {
+    this._showModal(`
+      <div class="modal" style="max-width: 520px;">
+        <h3>Лицензия объекта</h3>
+        <div id="lic-state" style="font-size: 13px; margin-bottom: 12px;">Проверяем…</div>
+        <p style="color: var(--secondary-text-color); font-size: 12px; margin: 0 0 10px; line-height: 1.45;">
+          Лицензия нужна, чтобы подключать к этому дому новые панели.
+          Уже работающие панели она не затрагивает.
+        </p>
+        <div class="field-row">
+          <label>Идентификатор дома</label>
+          <input type="text" id="lic-instance" class="control" readonly
+                 style="font-family: monospace; font-size: 12px;">
+        </div>
+        <div class="field-row">
+          <label>Лицензия</label>
+          <textarea id="lic-value" class="control" rows="3"
+                    placeholder="Вставьте строку лицензии"
+                    style="font-family: monospace; font-size: 11px;"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="lic-cancel">Закрыть</button>
+          <button class="btn primary" id="lic-ok">Сохранить</button>
+        </div>
+      </div>
+    `, (root, close) => {
+      const box = root.querySelector('#lic-state');
+      const inst = root.querySelector('#lic-instance');
+      const refresh = async () => {
+        try {
+          const st = await this._hass.callWS({ type: 'bms_panel/license_get' });
+          inst.value = st.instance || '';
+          box.innerHTML = st.valid
+            ? `<span style="color: var(--bms-ok, #4caf50);">Действует</span> — «${esc(st.object || '')}»`
+              + (st.bound ? ' (привязана к этому дому)' : ' (не привязана к дому)')
+            : `<span style="color: var(--bms-error, #f44336);">${esc(st.reason || 'Нет лицензии')}</span>`;
+        } catch (err) {
+          box.textContent = 'Не удалось проверить лицензию';
+        }
+      };
+      refresh();
+
+      root.querySelector('#lic-cancel').onclick = close;
+      root.querySelector('#lic-ok').onclick = async () => {
+        const value = root.querySelector('#lic-value').value.trim();
+        if (!value) { this._toast('Вставьте строку лицензии', 'error'); return; }
+        try {
+          const st = await this._hass.callWS({ type: 'bms_panel/license_set', license: value });
+          this._toast(`Лицензия принята — «${st.object || ''}»`, 'success', { duration: 5000 });
+          refresh();
+        } catch (err) {
+          this._toast(err?.message || 'Лицензия не принята', 'error');
+        }
+      };
+    });
+  }
+
+  _showApkUpload() {
+    this._showModal(`
+      <div class="modal" style="max-width: 460px;">
+        <h3>Обновление для панелей</h3>
+        <p style="color: var(--secondary-text-color); font-size: 13px; margin: 0 0 14px; line-height: 1.45;">
+          Загрузите файл приложения (.apk) — панели этого дома увидят его в
+          «Настройки → Обновить приложение». Файл отдаётся только панели,
+          которая уже подключена к дому; публичной ссылки нет.
+        </p>
+        <div id="apk-current" style="font-size: 13px; margin-bottom: 12px;">Проверяем…</div>
+        <input type="file" id="apk-file" accept=".apk" class="control">
+        <div class="modal-actions">
+          <button class="btn" id="apk-cancel">Закрыть</button>
+          <button class="btn primary" id="apk-ok">Загрузить</button>
+        </div>
+      </div>
+    `, (root, close) => {
+      const box = root.querySelector('#apk-current');
+      const refresh = async () => {
+        try {
+          const r = await fetch('/api/bms_panel/update/latest', {
+            headers: { Authorization: `Bearer ${this._hass.auth.data.access_token}` },
+          });
+          if (!r.ok) { box.textContent = 'Сейчас в доме обновления нет.'; return; }
+          const m = await r.json();
+          box.innerHTML = `Сейчас в доме: <b>${esc(m.version)}</b> (${(m.size / 1048576).toFixed(1)} МБ)`;
+        } catch (_) {
+          box.textContent = 'Не удалось проверить, что лежит в доме.';
+        }
+      };
+      refresh();
+
+      root.querySelector('#apk-cancel').onclick = close;
+      root.querySelector('#apk-ok').onclick = async () => {
+        const input = root.querySelector('#apk-file');
+        const file = input.files && input.files[0];
+        if (!file) { this._toast('Выберите файл .apk', 'error'); return; }
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          const r = await fetch('/api/bms_panel/update/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${this._hass.auth.data.access_token}` },
+            body: fd,
+          });
+          const data = await r.json();
+          if (!r.ok) { this._toast(data.error || 'Не удалось загрузить', 'error'); return; }
+          this._toast(`Обновление ${data.version} загружено — панели его увидят`, 'success', { duration: 6000 });
+          refresh();
+        } catch (err) {
+          this._toast('Ошибка загрузки: ' + (err?.message || ''), 'error');
+        }
+      };
+    });
+  }
+
   _showPairPanel(prefillCode = '') {
     const panels = this._allPanels();
     if (!panels.length) {
@@ -3951,6 +4175,290 @@ class BMSPanelEditor extends HTMLElement {
       };
     });
     return close;
+  }
+
+
+  // ---------- Установка на заводскую панель по сети ----------
+
+  /**
+   * Тот же путь, что раньше был доступен только из Панели разработчика
+   * (сервисы discover_factory_panels / install_panel), но по-человечески:
+   * ищем панели в сети → установщик тыкает в нужную → выбирает, новая это
+   * панель или уже заведённая → жмёт «Установить» и видит ход работы.
+   *
+   * Ход установки приходит событиями HA (bms_panel_install_progress) —
+   * прошивка идёт фоном на сервере и переживает закрытие диалога, но пока
+   * диалог открыт, закрывать его не даём: человек должен дочитать результат.
+   */
+  _showInstallPanel() {
+    const st = {
+      stage: 'search',        // search | list | chosen | progress | success | error
+      panels: [], free: [],
+      picked: null,
+      target: 'new',          // new | existing
+      name: 'Новая панель',
+      panelId: '',
+      steps: [], error: null, job: null, done: false,
+    };
+    let unsub = null;
+    let root = null, closeFn = null;
+
+    const shutdown = () => {
+      if (unsub) { try { unsub(); } catch (_) {} unsub = null; }
+    };
+    const running = () => st.stage === 'progress';
+
+    const search = async () => {
+      st.stage = 'search'; st.error = null; render();
+      try {
+        const res = await this._hass.callWS({ type: 'bms_panel/discover_panels' });
+        st.panels = res?.panels || [];
+        st.free = res?.free_panels || [];
+        st.stage = 'list';
+      } catch (err) {
+        st.panels = []; st.free = [];
+        st.stage = 'list';
+        st.error = err?.message || 'Не удалось выполнить поиск';
+      }
+      render();
+    };
+
+    const start = async () => {
+      st.stage = 'progress'; st.steps = []; st.error = null; st.done = false; render();
+      const name = (st.name || '').trim() || 'Новая панель';
+      try {
+        if (!unsub && this._hass?.connection?.subscribeEvents) {
+          unsub = await this._hass.connection.subscribeEvents(
+            (ev) => onProgress(ev?.data || {}), 'bms_panel_install_progress');
+        }
+        const res = await this._hass.callWS({
+          type: 'bms_panel/install_panel',
+          ip: st.picked.ip,
+          ...(st.target === 'existing' ? { panel_id: st.panelId } : { panel_name: name }),
+        });
+        st.job = res?.job || null;
+      } catch (err) {
+        st.stage = 'error';
+        st.error = err?.message || 'Не удалось запустить установку';
+      }
+      render();
+    };
+
+    const onProgress = (data) => {
+      if (!st.job || data.job !== st.job) return;
+      if (data.text && !st.steps.includes(data.text)) st.steps.push(data.text);
+      if (data.done) {
+        st.done = true;
+        st.stage = data.error ? 'error' : 'success';
+        st.error = data.error || null;
+        shutdown();
+      }
+      render();
+    };
+
+    const body = () => {
+      if (st.stage === 'search') {
+        return `
+          <div style="display: flex; align-items: center; gap: 14px; padding: 10px 0 4px;">
+            <div class="inst-spinner"></div>
+            <div>
+              <div>Ищу панели в сети…</div>
+              <div class="sub" style="font-size: 12px; color: var(--secondary-text-color);">
+                Обычно занимает 10–20 секунд.
+              </div>
+            </div>
+          </div>`;
+      }
+      if (st.stage === 'list') {
+        if (!st.panels.length) {
+          return `
+            ${st.error ? `<div class="inst-error">${esc(st.error)}</div>` : ''}
+            <p style="font-size: 13px; line-height: 1.5; margin: 6px 0 0;">
+              Заводских панелей в сети не нашлось. Так бывает, когда:
+            </p>
+            <ul style="font-size: 13px; line-height: 1.5; margin: 8px 0 0; padding-left: 20px; color: var(--secondary-text-color);">
+              <li>панель выключена или ещё не загрузилась;</li>
+              <li>панель и Home Assistant в разных сетях (разный Wi-Fi, гостевая сеть);</li>
+              <li>панель из другой партии — по сети ставится только та партия,
+                  у которой завод оставил открытой служебную дверь. Остальные
+                  подключаются кабелем у нас в мастерской.</li>
+            </ul>`;
+        }
+        return `
+          <p style="font-size: 13px; color: var(--secondary-text-color); margin: 0 0 12px; line-height: 1.45;">
+            Нашёл ${st.panels.length} ${st.panels.length === 1 ? 'панель' : 'панели'}.
+            Выберите ту, на которую ставим наше приложение.
+          </p>
+          ${st.panels.map((p, i) => `
+            <button class="inst-row" data-pick="${i}">
+              <ha-icon icon="mdi:tablet-dashboard"></ha-icon>
+              <span class="grow">
+                <span class="ip">${esc(p.ip)}</span>
+                <div class="sub">${esc(p.model || 'заводская панель')}${p.release ? ' · ' + esc(p.release) : ''}</div>
+              </span>
+              <ha-icon icon="mdi:chevron-right"></ha-icon>
+            </button>`).join('')}`;
+      }
+      if (st.stage === 'chosen') {
+        const canExisting = st.free.length > 0;
+        return `
+          <button class="inst-row picked" disabled style="cursor: default;">
+            <ha-icon icon="mdi:tablet-dashboard"></ha-icon>
+            <span class="grow">
+              <span class="ip">${esc(st.picked.ip)}</span>
+              <div class="sub">${esc(st.picked.model || 'заводская панель')}</div>
+            </span>
+          </button>
+          <div class="field-row">
+            <label>Куда ставим</label>
+            <select id="inst-target" class="control">
+              <option value="new" ${st.target === 'new' ? 'selected' : ''}>Создать новую панель</option>
+              <option value="existing" ${st.target === 'existing' ? 'selected' : ''} ${canExisting ? '' : 'disabled'}>
+                Подключить к уже созданной${canExisting ? '' : ' — свободных нет'}
+              </option>
+            </select>
+          </div>
+          ${st.target === 'existing' && canExisting ? `
+          <div class="field-row">
+            <label>Какая панель</label>
+            <select id="inst-panel" class="control">
+              ${st.free.map(p => `<option value="${esc(p.panel_id)}" ${st.panelId === p.panel_id ? 'selected' : ''}>
+                ${esc(p.panel_name || p.panel_id)}</option>`).join('')}
+            </select>
+          </div>` : `
+          <div class="field-row">
+            <label>Название панели</label>
+            <input type="text" id="inst-name" class="control" maxlength="40"
+                   placeholder="Гостиная" value="${esc(st.name)}">
+          </div>`}
+          <p class="inst-note">
+            Займёт 1–2 минуты. Не выключайте панель и роутер.
+          </p>`;
+      }
+      if (st.stage === 'progress' || st.stage === 'success' || st.stage === 'error') {
+        const steps = st.steps.length ? st.steps : ['начинаю установку'];
+        const list = `
+          <ul class="inst-steps">
+            ${steps.map((t, i) => {
+              const last = i === steps.length - 1;
+              const pending = last && st.stage === 'progress';
+              // Последний шаг при ошибке — это тот, на котором всё встало:
+              // помечаем крестиком, иначе галочка врёт про неудачу.
+              const failed = last && st.stage === 'error';
+              const cls = pending ? 'now' : failed ? 'fail' : 'ok';
+              return `<li class="${cls}">
+                <span class="mark">${pending ? '·' : failed ? '✕' : '✓'}</span><span>${esc(t)}</span>
+              </li>`;
+            }).join('')}
+          </ul>`;
+        if (st.stage === 'progress') {
+          return `
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 8px;">
+              <div class="inst-spinner"></div>
+              <div>
+                <div>Ставлю на ${esc(st.picked?.ip || '')}</div>
+                <div class="sub" style="font-size: 12px; color: var(--secondary-text-color);">
+                  Не выключайте панель и роутер.
+                </div>
+              </div>
+            </div>
+            ${list}`;
+        }
+        if (st.stage === 'success') {
+          return `
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--bms-success);">
+              <ha-icon icon="mdi:check-circle"></ha-icon>
+              <div style="color: var(--primary-text-color);">
+                Готово — панель перезагружается и сама появится в списке.
+              </div>
+            </div>
+            ${list}`;
+        }
+        return `
+          <div class="inst-error">${esc(st.error || 'Установка не удалась')}</div>
+          ${list}`;
+      }
+      return '';
+    };
+
+    const actions = () => {
+      if (st.stage === 'search') {
+        return `<button class="btn" id="inst-close">Отмена</button>`;
+      }
+      if (st.stage === 'list') {
+        return `
+          <button class="btn" id="inst-close">Закрыть</button>
+          <button class="btn primary" id="inst-again">
+            <ha-icon icon="mdi:refresh"></ha-icon>&nbsp;Искать снова
+          </button>`;
+      }
+      if (st.stage === 'chosen') {
+        return `
+          <button class="btn" id="inst-back">Назад</button>
+          <button class="btn primary" id="inst-go">
+            <ha-icon icon="mdi:download-network"></ha-icon>&nbsp;Установить
+          </button>`;
+      }
+      if (st.stage === 'progress') {
+        return `<button class="btn" id="inst-close" disabled title="Дождитесь окончания установки">Закрыть</button>`;
+      }
+      if (st.stage === 'error') {
+        return `
+          <button class="btn" id="inst-close">Закрыть</button>
+          <button class="btn primary" id="inst-go">Повторить</button>`;
+      }
+      return `<button class="btn primary" id="inst-close">Закрыть</button>`;
+    };
+
+    const render = () => {
+      if (!root) return;
+      const box = root.querySelector('#inst-modal');
+      if (!box) return;
+      box.innerHTML = `
+        <h3>Установить на заводскую панель</h3>
+        <div id="inst-body">${body()}</div>
+        <div class="modal-actions">${actions()}</div>`;
+
+      const closeBtn = box.querySelector('#inst-close');
+      if (closeBtn) closeBtn.onclick = () => { if (!running()) { shutdown(); this._modalCleanup = null; closeFn(); } };
+      const again = box.querySelector('#inst-again');
+      if (again) again.onclick = search;
+      const back = box.querySelector('#inst-back');
+      if (back) back.onclick = () => { st.stage = 'list'; render(); };
+      const go = box.querySelector('#inst-go');
+      if (go) go.onclick = start;
+      box.querySelectorAll('[data-pick]').forEach(btn => {
+        btn.onclick = () => {
+          st.picked = st.panels[Number(btn.dataset.pick)];
+          st.target = 'new';
+          st.panelId = st.free[0]?.panel_id || '';
+          st.stage = 'chosen';
+          render();
+        };
+      });
+      const target = box.querySelector('#inst-target');
+      if (target) target.onchange = () => { st.target = target.value; render(); };
+      const panelSel = box.querySelector('#inst-panel');
+      if (panelSel) panelSel.onchange = () => { st.panelId = panelSel.value; };
+      const nameInp = box.querySelector('#inst-name');
+      if (nameInp) nameInp.oninput = () => { st.name = nameInp.value; };
+    };
+
+    this._showModal(`<div class="modal" style="max-width: 480px;" id="inst-modal"></div>`, (r, cf) => {
+      root = r; closeFn = cf;
+      this._modalCleanup = shutdown;
+      // Пока идёт установка, окно не закрываем даже кликом мимо — иначе
+      // человек теряет из виду единственное место, где видно ход работы.
+      const backdrop = r.querySelector('#bk');
+      const backdropClose = backdrop.onclick;
+      backdrop.onclick = (e) => {
+        if (running()) return;
+        if (e.target.id === 'bk') shutdown();
+        backdropClose(e);
+      };
+      render();
+      search();
+    });
   }
 
   _showAddPanel() {
@@ -4344,6 +4852,7 @@ class BMSPanelEditor extends HTMLElement {
     const proposal = {};
     let totalEntities = 0;
     for (const [bk, meta] of Object.entries(BIND_KEYS)) {
+      if (AREA_FILL_SKIP_SCREENS.has(meta.requiresScreen)) continue;
       const inArea = this._entitiesInArea(areaId, meta.domain);
       if (!inArea.length) continue;
       proposal[bk] = inArea;
@@ -4871,7 +5380,8 @@ class BMSPanelEditor extends HTMLElement {
   _pvMenu(cfg) {
     const enabled = this._enabledScreens(cfg);
     // Только включённые системные — выключенные не светятся в реальном APK
-    const systemTiles = ['light','curtain','music','ac','heating','floor','convector','ventilation']
+    const systemTiles = ['light','curtain','music','ac','heating','floor','convector','ventilation',
+                         'energy','pool','irrigation','garage','automations']
       .filter(k => enabled.includes(k));
     const customCards = Array.isArray(cfg.custom_cards) ? cfg.custom_cards : [];
 

@@ -387,6 +387,11 @@ class DeviceRegistry:
         await self._async_save()
         return new_secret
 
+    async def async_panel_ids(self) -> set[str]:
+        """panel_id всех панелей, за которыми уже закреплено устройство."""
+        await self.async_load()
+        return {rec.get("panel_id") for rec in self._devices.values() if rec.get("panel_id")}
+
     async def async_forget_panel(self, panel_id: str) -> int:
         """Забывает панель целиком — при удалении панели из списка."""
         await self.async_load()
@@ -432,6 +437,24 @@ def _devices(hass: HomeAssistant) -> DeviceRegistry:
         reg = DeviceRegistry(hass)
         data[DATA_DEVICES] = reg
     return reg
+
+
+async def async_bound_panel_ids(hass: HomeAssistant) -> set[str]:
+    """Панели, к которым уже привязано физическое устройство. Нужно UI
+    автоустановки: предлагать ставить только на свободные панели, чтобы не
+    увести работающую панель клиента на другое железо."""
+    return await _devices(hass).async_panel_ids()
+
+
+async def async_register_device_identity(
+    hass: HomeAssistant, panel_id: str, user_id: str, name: str
+) -> tuple[str, str]:
+    """Публичная обёртка над DeviceRegistry.async_register — тот же самый шаг,
+    что websocket_pair_approve делает после подтверждения по QR (возврат
+    (device_id, device_secret)). Нужна тем путям привязки, где нет сессии QR:
+    например автоматическая установка (см. provisioning.py) сама выступает
+    подтверждающим администратором и минует ожидание телефона."""
+    return await _devices(hass).async_register(panel_id=panel_id, user_id=user_id, name=name)
 
 
 class BmsPanelRenewView(HomeAssistantView):
@@ -609,6 +632,19 @@ def async_register_pairing(hass: HomeAssistant, taken_panel_ids) -> None:
         user = connection.user
         if user is None or not user.is_admin:
             connection.send_error(msg["id"], "unauthorized", "Нужны права администратора")
+            return
+
+        # Лицензия объекта. Проверяем ТОЛЬКО здесь — при подключении новой
+        # панели. Уже работающие панели этой проверки не касаются никогда:
+        # дом клиента не должен вставать из-за лицензии.
+        from .license import async_get_state as _license_state
+        lic = await _license_state(hass)
+        if not lic.get("valid"):
+            connection.send_error(
+                msg["id"], "no_license",
+                f"{lic.get('reason', 'Нет действующей лицензии')} "
+                f"Идентификатор этого дома: {lic.get('instance', '')}",
+            )
             return
 
         try:

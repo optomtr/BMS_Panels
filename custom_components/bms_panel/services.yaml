@@ -79,3 +79,54 @@ clone_panel:
       name: Panel ID новой панели (опционально)
       required: false
       selector: { text: {} }
+
+discover_factory_panels:
+  name: Найти заводские панели в сети
+  description: >
+    Сканирует локальную сеть на заводские Linux-панели (SigmaStar SSD20x /
+    FlyThings), ещё не подключённые к дому. Ничего не меняет на найденных
+    устройствах — только показывает список IP для install_panel. Работает
+    только для этой конкретной партии железа — если панель другой прошивки,
+    в списке не появится.
+
+install_panel:
+  name: Установить приложение на панель
+  description: >
+    Заливает приложение на заводскую панель по её IP (взять из
+    discover_factory_panels), выпускает ей собственный ключ дома и
+    перезагружает — панель встаёт с уже готовым конфигом, без QR и без
+    похода к ней с телефоном. Прошивка занимает до пары минут; НЕ
+    выключайте панель и роутер до уведомления об окончании. Требует
+    действующей лицензии дома — как обычная привязка по QR.
+  fields:
+    ip:
+      name: IP панели
+      description: Адрес из списка discover_factory_panels.
+      required: true
+      example: 192.168.1.150
+      selector: { text: {} }
+    panel_id:
+      name: Panel ID существующей панели (опционально)
+      description: >
+        Если панель уже создана в списке (например заранее настроена под
+        клиента) — укажите её ID, чтобы установить именно на неё. Пусто —
+        будет создана новая панель по panel_name.
+      required: false
+      selector: { text: {} }
+    panel_name:
+      name: Имя новой панели
+      description: Используется только если panel_id не указан.
+      required: false
+      example: Панель кухни
+      selector: { text: {} }
+    ha_host:
+      name: Адрес HA для панели (опционально)
+      description: >
+        На случай нескольких сетевых интерфейсов сервера — обычно
+        определяется само.
+      required: false
+      selector: { text: {} }
+    ha_port:
+      name: Порт HA (опционально)
+      required: false
+      selector: { number: { min: 1, max: 65535, mode: box } }

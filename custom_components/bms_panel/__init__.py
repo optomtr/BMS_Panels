@@ -23,7 +23,7 @@ from homeassistant.components import panel_custom
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
@@ -33,6 +33,7 @@ from homeassistant.helpers import (
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
+    EVENT_INSTALL_PROGRESS,
     BG_UPLOAD_DIR,
     BG_UPLOAD_EXTENSIONS,
     BG_UPLOAD_KEEP_PER_PANEL,
@@ -42,6 +43,8 @@ from .const import (
     DOMAIN,
     SERVICE_ADD_PANEL,
     SERVICE_CLONE_PANEL,
+    SERVICE_DISCOVER_PANELS,
+    SERVICE_INSTALL_PANEL,
     SERVICE_REMOVE_PANEL,
     SERVICE_RESET_CONFIG,
     SERVICE_UPDATE_CONFIG,
@@ -53,7 +56,20 @@ from .const import (
     STORAGE_VERSION_MAJOR,
     STORAGE_VERSION_MINOR,
 )
-from .pairing import async_forget_panel_devices, async_register_pairing
+from .pairing import (
+    async_bound_panel_ids,
+    async_forget_panel_devices,
+    async_register_pairing,
+)
+from .activation_relay import async_register_activation_relay
+from .license import async_register_license
+from .provisioning import (
+    ProvisioningError,
+    ProvisionProgress,
+    async_discover_factory_panels,
+    async_install_panel,
+)
+from .updates import async_register_updates
 from .schemas import migrate_storage, normalize_config
 from .validation import has_errors, summary as validation_summary, validate
 
@@ -265,6 +281,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         # Привязка панели по QR: ручки без авторизации (у панели ещё нет токена)
         # + admin-команды подтверждения. Подробности — в pairing.py.
         async_register_pairing(hass, _taken_panel_ids)
+
+        # Активация Linux-панелей через ERP: у них нет TLS-стека, HA — просто
+        # прокси до ERP по https (панель сама проверяет подпись ответа).
+        # Подробности — в activation_relay.py.
+        async_register_activation_relay(hass)
+
+        # Обновления панелей через собственный дом клиента: публичной ссылки на
+        # приложение больше нет, файл отдаётся только авторизованной панели.
+        async_register_updates(hass)
+
+        # Лицензия объекта: проверяется при подключении НОВОЙ панели.
+        # Работающие панели никогда не блокируются — см. license.py.
+        async_register_license(hass)
         hass.data[DOMAIN]["bg_upload_registered"] = True
 
     # ---- Cache-busting: version из manifest.json ----
@@ -435,6 +464,90 @@ class BmsPanelBgUploadView(HomeAssistantView):
         return self.json({"url": f"{BG_UPLOAD_URL_PREFIX}/{filename}"})
 
 
+def _install_progress(hass: HomeAssistant, ip: str, job: str | None) -> ProvisionProgress:
+    """ProvisionProgress, который на каждом шаге ещё и стреляет событием HA.
+
+    Шаги не выдумываем: текст берётся тот же, что уходит в лог и уведомление
+    (provisioning.py, p.note) — иначе у UI и у уведомления разошлись бы
+    формулировки одного и того же процесса.
+    """
+    p = ProvisionProgress(ip=ip)
+    if not job:
+        return p
+    original_note = p.note
+    step_no = 0
+
+    def note(text: str) -> None:
+        nonlocal step_no
+        original_note(text)
+        step_no += 1
+        hass.bus.async_fire(EVENT_INSTALL_PROGRESS, {
+            "job": job, "ip": ip, "step": step_no, "text": text,
+            "done": False, "error": None, "panel_id": p.panel_id,
+        })
+
+    p.note = note  # подмена на экземпляре — сам dataclass не трогаем
+    return p
+
+
+async def _async_run_install(
+    hass: HomeAssistant,
+    *,
+    ip: str,
+    user_id: str,
+    panel_id: str | None,
+    panel_name: str,
+    ha_host: str | None = None,
+    ha_port: int = 8123,
+    job: str | None = None,
+) -> None:
+    """Установка на заводскую панель: уведомление HA + (если задан job)
+    события хода для редактора. Никогда не пробрасывает исключение наружу —
+    это фоновая задача, ошибку человек видит в уведомлении и в диалоге."""
+    notif_id = f"bms_panel_install_{ip.replace('.', '_')}"
+    progress = _install_progress(hass, ip, job)
+
+    def _fire(done: bool, error: str | None) -> None:
+        if not job:
+            return
+        hass.bus.async_fire(EVENT_INSTALL_PROGRESS, {
+            "job": job, "ip": ip, "step": len(progress.steps_log),
+            "text": progress.step, "done": done, "error": error,
+            "panel_id": progress.panel_id,
+        })
+
+    await hass.services.async_call(
+        "persistent_notification", "create",
+        {"notification_id": notif_id, "title": "BMS Panel — установка",
+         "message": f"Начинаю установку на {ip}… (не выключайте панель "
+                    f"и роутер до готовности)"},
+        blocking=False,
+    )
+    try:
+        await async_install_panel(
+            hass, ip, user_id=user_id, panel_id=panel_id, panel_name=panel_name,
+            ha_host=ha_host, ha_port=ha_port, progress=progress,
+        )
+        await hass.services.async_call(
+            "persistent_notification", "create",
+            {"notification_id": notif_id, "title": "BMS Panel — готово",
+             "message": f"Панель {ip} установлена (panel_id: "
+                        f"{progress.panel_id}) и перезагружается со "
+                        f"своим приложением."},
+            blocking=False,
+        )
+        _fire(True, None)
+    except Exception as exc:  # noqa: BLE001 — фоновая задача, падать некуда
+        _LOGGER.warning("BMS provisioning не удалась для %s: %s", ip, exc)
+        await hass.services.async_call(
+            "persistent_notification", "create",
+            {"notification_id": notif_id, "title": "BMS Panel — ошибка установки",
+             "message": str(exc)},
+            blocking=False,
+        )
+        _fire(True, str(exc))
+
+
 def _async_register_websocket_api(hass: HomeAssistant) -> None:
     """WebSocket API для редактора. Не зависит от наличия sensor в hass.states."""
     if hass.data[DOMAIN].get("websocket_registered"):
@@ -466,7 +579,66 @@ def _async_register_websocket_api(hass: HomeAssistant) -> None:
                 )
         connection.send_result(msg["id"], panels)
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): "bms_panel/discover_panels",
+    })
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    async def websocket_discover_panels(hass, connection, msg) -> None:
+        """Поиск заводских панелей в сети — то же, что сервис
+        discover_factory_panels, но с ответом редактору. Только читает сеть.
+
+        Заодно отдаём список панелей, к которым ещё не привязано устройство:
+        в диалоге установки предлагать «поставить на эту панель» имеет смысл
+        только для свободных, иначе можно увести работающую панель клиента.
+        """
+        try:
+            found = await async_discover_factory_panels(hass)
+        except ProvisioningError as exc:
+            connection.send_error(msg["id"], "discover_failed", str(exc))
+            return
+        bound = await async_bound_panel_ids(hass)
+        free = [
+            {"panel_id": pid, "panel_name": hass.data[DOMAIN]["meta"].get(pid, {}).get("panel_name", pid)}
+            for pid in sorted(_taken_panel_ids(hass)) if pid not in bound
+        ]
+        connection.send_result(msg["id"], {
+            "panels": [{"ip": p.ip, "model": p.model, "release": p.release} for p in found],
+            "free_panels": free,
+        })
+
+    @websocket_api.websocket_command({
+        vol.Required("type"): "bms_panel/install_panel",
+        vol.Required("ip"): str,
+        vol.Optional("panel_id"): str,
+        vol.Optional("panel_name"): str,
+    })
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    async def websocket_install_panel(hass, connection, msg) -> None:
+        """Запускает установку фоном и сразу возвращает номер работы (job).
+        Ход установки редактор слушает событиями EVENT_INSTALL_PROGRESS —
+        сама прошивка занимает до пары минут, держать WS-вызов нельзя."""
+        user = connection.user
+        if user is None:
+            connection.send_error(msg["id"], "unauthorized", "Нужны права администратора")
+            return
+        ip = (msg.get("ip") or "").strip()
+        if not ip:
+            connection.send_error(msg["id"], "no_ip", "Не выбрана панель для установки")
+            return
+        job = f"{int(time.time())}_{ip.replace('.', '_')}"
+        hass.async_create_task(_async_run_install(
+            hass, ip=ip, user_id=user.id,
+            panel_id=(msg.get("panel_id") or "").strip() or None,
+            panel_name=(msg.get("panel_name") or "Новая панель").strip() or "Новая панель",
+            job=job,
+        ))
+        connection.send_result(msg["id"], {"job": job, "ip": ip})
+
     websocket_api.async_register_command(hass, websocket_list_panels)
+    websocket_api.async_register_command(hass, websocket_discover_panels)
+    websocket_api.async_register_command(hass, websocket_install_panel)
     hass.data[DOMAIN]["websocket_registered"] = True
 
 
@@ -728,6 +900,37 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 f"Техническая причина: {exc}"
             ) from exc
 
+    async def install_panel(call: ServiceCall) -> None:
+        """Автоустановка на заводскую Linux-панель по сети — см. provisioning.py
+        (там же — почему это вообще возможно и почему это безопасно). IP
+        обязателен и берётся из discover_factory_panels: вслепую по всей сети
+        этот сервис НЕ бегает, установка идёт только туда, куда явно указали.
+
+        Прошивка + перезагрузка занимают до пары минут — сам вызов сервиса
+        не блокируем, ход виден по уведомлению HA."""
+        ip = (call.data.get("ip") or "").strip()
+        if not ip:
+            raise HomeAssistantError("Не передан ip — сначала вызовите discover_factory_panels")
+        panel_id = (call.data.get("panel_id") or "").strip() or None
+        panel_name = (call.data.get("panel_name") or "Новая панель").strip()
+        # Если у сервера HA несколько сетевых интерфейсов — автоопределение
+        # адреса может выбрать не тот; тогда указать явно.
+        ha_host = (call.data.get("ha_host") or "").strip() or None
+        ha_port = call.data.get("ha_port") or 8123
+
+        uid = getattr(call.context, "user_id", None)
+        if not uid:
+            raise HomeAssistantError(
+                "Установка панели требует вызова от имени администратора HA — "
+                "на кону root-доступ к реальному устройству, автоматизации/"
+                "скрипты без пользователя сюда не годятся."
+            )
+
+        hass.async_create_task(_async_run_install(
+            hass, ip=ip, user_id=uid, panel_id=panel_id, panel_name=panel_name,
+            ha_host=ha_host, ha_port=ha_port,
+        ))
+
     services = [
         (SERVICE_UPDATE_CONFIG, update_config, vol.Schema({
             vol.Required("panel_id"): cv.string,
@@ -748,6 +951,13 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             vol.Required("panel_name"):      cv.string,
             vol.Optional("panel_id"):        cv.string,
             vol.Optional("copy_entities"):   cv.boolean,
+        })),
+        (SERVICE_INSTALL_PANEL, install_panel, vol.Schema({
+            vol.Required("ip"):         cv.string,
+            vol.Optional("panel_id"):   cv.string,
+            vol.Optional("panel_name"): cv.string,
+            vol.Optional("ha_host"):    cv.string,
+            vol.Optional("ha_port"):    cv.port,
         })),
     ]
     def _admin_only(handler):
@@ -770,6 +980,30 @@ async def _async_register_services(hass: HomeAssistant) -> None:
     for name, func, schema in services:
         # async_register идемпотентен — повторная регистрация перезаписывает.
         hass.services.async_register(DOMAIN, name, _admin_only(func), schema=schema)
+
+    async def discover_factory_panels(call: ServiceCall) -> dict:
+        """Только читает сеть — ничего не меняет ни на одном устройстве.
+        Список кандидатов существует, чтобы человек выбрал ОДИН IP и передал
+        его в install_panel; сама по себе установку не запускает."""
+        found = await async_discover_factory_panels(hass)
+        return {"panels": [{"ip": p.ip, "model": p.model, "release": p.release} for p in found]}
+
+    async def _discover_wrapper(call: ServiceCall) -> dict:
+        uid = getattr(call.context, "user_id", None)
+        if uid:
+            user = await hass.auth.async_get_user(uid)
+            if user is None or not user.is_admin:
+                raise HomeAssistantError(
+                    "Поиск панелей BMS доступен только администраторам Home Assistant"
+                )
+        return await discover_factory_panels(call)
+
+    # Отдельная регистрация (не через общий цикл выше): нужен ответ вызывающему
+    # (supports_response) — общий _admin_only его отбрасывает.
+    hass.services.async_register(
+        DOMAIN, SERVICE_DISCOVER_PANELS, _discover_wrapper,
+        supports_response=SupportsResponse.ONLY,
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
