@@ -4019,7 +4019,7 @@ class BMSPanelEditor extends HTMLElement {
           Файл отдаётся только подключённой к дому панели.
         </p>
         <div id="rk-current" style="font-size: 13px; margin-bottom: 12px;">Проверяем…</div>
-        <input type="text" id="rk-ver" class="control" placeholder="Версия, например 0.3.1" style="margin-bottom: 8px;">
+        <input type="text" id="rk-ver" class="control" placeholder="Версия — три числа, например 0.3.3" style="margin-bottom: 8px;">
         <input type="file" id="rk-file" class="control">
         <div class="modal-actions">
           <button class="btn" id="rk-cancel">Закрыть</button>
@@ -4043,6 +4043,13 @@ class BMSPanelEditor extends HTMLElement {
       refresh();
 
       root.querySelector('#rk-cancel').onclick = close;
+      // Версию берём из имени файла (bmspanel-rk-0.3.3.bin) — руками её легко
+      // вписать с ошибкой («3.2» вместо «0.3.2»), а панель сравнивает строго.
+      root.querySelector('#rk-file').onchange = (ev) => {
+        const f = ev.target.files && ev.target.files[0];
+        const m = f && /(\d+\.\d+\.\d+)/.exec(f.name);
+        if (m) root.querySelector('#rk-ver').value = m[1];
+      };
       root.querySelector('#rk-ok').onclick = async () => {
         const input = root.querySelector('#rk-file');
         const file = input.files && input.files[0];

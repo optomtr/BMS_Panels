@@ -45,6 +45,7 @@ VERSION_RE = re.compile(r"v?\d+\.\d+\.\d+")
 # же дом-как-раздатчик, но свой файл и своё описание. Бинарь ~1.7 МБ.
 RK_META_FILE = "latest_rk.json"
 RK_FILE = "bmspanel-rk"
+RK_VERSION_RE = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}")
 MAX_RK_BYTES = 20 * 1024 * 1024
 
 
@@ -260,6 +261,23 @@ class BmsPanelRkUploadView(HomeAssistantView):
             return self.json(
                 {"error": "Укажите версию (например 0.3.1) или назовите файл "
                           "bmspanel-rk-0.3.1"},
+                status_code=400,
+            )
+        # Строго «a.b.c»: панель сравнивает версии по трём числам, и «3.2»
+        # вместо «0.3.2» для неё — более новая, чем любая 0.x. 23.09.2026 так
+        # панель на объекте по кругу качала ту же прошивку и перезапускалась.
+        version = version.lstrip("vV")
+        if not RK_VERSION_RE.fullmatch(version):
+            return self.json(
+                {"error": f"Версия «{version}» — нужна в виде трёх чисел через "
+                          "точку, как в имени файла: например 0.3.3"},
+                status_code=400,
+            )
+        # Прошивка панели — исполняемый файл Linux (ELF). Архив, APK или
+        # картинка сюда по ошибке не попадут.
+        if contents[:4] != b"\x7fELF":
+            return self.json(
+                {"error": "Это не файл прошивки Linux-панели (bmspanel-rk)"},
                 status_code=400,
             )
 
