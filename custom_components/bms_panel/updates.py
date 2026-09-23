@@ -41,6 +41,48 @@ META_FILE = "latest.json"
 MAX_APK_BYTES = 60 * 1024 * 1024
 VERSION_RE = re.compile(r"v?\d+\.\d+\.\d+")
 
+# Linux-панель (Rockchip, bmspanel-rk) обновляется отдельно от Android-APK: тот
+# же дом-как-раздатчик, но свой файл и своё описание. Бинарь ~1.7 МБ.
+RK_META_FILE = "latest_rk.json"
+RK_FILE = "bmspanel-rk"
+MAX_RK_BYTES = 20 * 1024 * 1024
+
+
+def _rk_meta_path(hass: HomeAssistant) -> str:
+    return os.path.join(_dir(hass), RK_META_FILE)
+
+
+def _read_rk_meta(hass: HomeAssistant) -> dict | None:
+    try:
+        with open(_rk_meta_path(hass), encoding="utf-8") as f:
+            meta = json.load(f)
+    except (OSError, ValueError):
+        return None
+    binp = os.path.join(_dir(hass), meta.get("filename", ""))
+    if not meta.get("filename") or not os.path.isfile(binp):
+        return None
+    return meta
+
+
+def _write_rk(hass: HomeAssistant, contents: bytes, version: str) -> dict:
+    """Кладёт бинарь Linux-панели и его описание. Версия — без префикса «v»
+    (клиент панели сравнивает как a.b.c)."""
+    directory = _dir(hass)
+    os.makedirs(directory, exist_ok=True)
+    version = version.lstrip("v")
+    path = os.path.join(directory, RK_FILE)
+    with open(path, "wb") as f:
+        f.write(contents)
+    meta = {
+        "version": version,
+        "filename": RK_FILE,
+        "size": len(contents),
+        "sha256": hashlib.sha256(contents).hexdigest(),
+    }
+    with open(_rk_meta_path(hass), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    return meta
+
 
 def _dir(hass: HomeAssistant) -> str:
     return hass.config.path(UPDATES_DIR)
@@ -184,6 +226,88 @@ class BmsPanelUpdateDownloadView(HomeAssistantView):
         )
 
 
+class BmsPanelRkUploadView(HomeAssistantView):
+    """POST /api/bms_panel/rk_update/upload — владелец кладёт новый бинарь
+    Linux-панели (bmspanel-rk). Только администратор."""
+
+    url = "/api/bms_panel/rk_update/upload"
+    name = "api:bms_panel:rk_upload"
+    requires_auth = True
+
+    async def post(self, request):
+        from homeassistant.components.http import KEY_HASS
+        hass = request.app[KEY_HASS]
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            return self.json({"error": "Требуются права администратора"}, status_code=401)
+
+        data = await request.post()
+        field = data.get("file")
+        if field is None or not hasattr(field, "file"):
+            return self.json({"error": "Нет файла"}, status_code=400)
+        contents = await hass.async_add_executor_job(field.file.read)
+        if not contents:
+            return self.json({"error": "Пустой файл"}, status_code=400)
+        if len(contents) > MAX_RK_BYTES:
+            mb = MAX_RK_BYTES // (1024 * 1024)
+            return self.json({"error": f"Файл больше {mb} МБ"}, status_code=400)
+
+        version = str(data.get("version") or "").strip()
+        if not version:
+            found = VERSION_RE.search(os.path.basename(field.filename or ""))
+            version = found.group(0) if found else ""
+        if not version:
+            return self.json(
+                {"error": "Укажите версию (например 0.3.1) или назовите файл "
+                          "bmspanel-rk-0.3.1"},
+                status_code=400,
+            )
+
+        meta = await hass.async_add_executor_job(_write_rk, hass, contents, version)
+        _LOGGER.info(
+            "BMS Panel: загружен Linux-бинарь %s (%d байт), загрузил %s",
+            meta["version"], meta["size"], user.name or user.id,
+        )
+        return self.json(meta)
+
+
+class BmsPanelRkUpdateView(HomeAssistantView):
+    """GET /api/bms_panel/rk_update — версия и SHA-256 свежего Linux-бинаря.
+    Спрашивает уже привязанная панель своим ключом."""
+
+    url = "/api/bms_panel/rk_update"
+    name = "api:bms_panel:rk_update"
+    requires_auth = True
+
+    async def get(self, request):
+        from homeassistant.components.http import KEY_HASS
+        hass = request.app[KEY_HASS]
+        meta = await hass.async_add_executor_job(_read_rk_meta, hass)
+        if meta is None:
+            return self.json({"error": "Обновление не загружено"}, status_code=404)
+        return self.json(meta)
+
+
+class BmsPanelRkBinaryView(HomeAssistantView):
+    """GET /api/bms_panel/rk_binary — сам бинарь Linux-панели, только по ключу."""
+
+    url = "/api/bms_panel/rk_binary"
+    name = "api:bms_panel:rk_binary"
+    requires_auth = True
+
+    async def get(self, request):
+        from homeassistant.components.http import KEY_HASS
+        hass = request.app[KEY_HASS]
+        meta = await hass.async_add_executor_job(_read_rk_meta, hass)
+        if meta is None:
+            return self.json({"error": "Обновление не загружено"}, status_code=404)
+        path = os.path.join(_dir(hass), meta["filename"])
+        return web.FileResponse(
+            path,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+
+
 def async_register_updates(hass: HomeAssistant) -> None:
     """Регистрирует ручки обновления. Идемпотентно."""
     data = hass.data.setdefault(DOMAIN, {})
@@ -192,4 +316,7 @@ def async_register_updates(hass: HomeAssistant) -> None:
     hass.http.register_view(BmsPanelUpdateUploadView())
     hass.http.register_view(BmsPanelUpdateLatestView())
     hass.http.register_view(BmsPanelUpdateDownloadView())
+    hass.http.register_view(BmsPanelRkUploadView())
+    hass.http.register_view(BmsPanelRkUpdateView())
+    hass.http.register_view(BmsPanelRkBinaryView())
     data["updates_registered"] = True

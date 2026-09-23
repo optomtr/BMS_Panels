@@ -99,10 +99,13 @@ BIND_KEYS = {
     # gate_pulse_sensors — необязательные концевики, по ИНДЕКСУ к gate_pulses
     # (i-й датчик = i-е ворота, on = открыто).
     "gate_pulses":           {"multi": True,  "domain": "button", "extra_domains": ["input_button", "switch", "script"], "requires_screen": "garage"},
-    "gate_pulse_sensors":    {"multi": True,  "domain": "binary_sensor", "requires_screen": "garage"},
+    # Концевиком может быть и сами ворота (cover): open/opening = открыто.
+    "gate_pulse_sensors":    {"multi": True,  "domain": "binary_sensor", "extra_domains": ["cover"], "requires_screen": "garage"},
     # Автоматизации — сценарии (scene/script) и расписания (automation).
     "scenes":                {"multi": True,  "domain": "scene", "extra_domains": ["script"], "requires_screen": "automations"},
-    "automations":           {"multi": True,  "domain": "automation", "requires_screen": "automations"},
+    # Расписания — automation, а также режимы «… Авто», сделанные флажками
+    # (input_boolean) или реле (switch): панель переключает их своим доменом.
+    "automations":           {"multi": True,  "domain": "automation", "extra_domains": ["input_boolean", "switch"], "requires_screen": "automations"},
 
     # Главный экран — датчики
     "temp_sensor":     {"multi": False, "domain": "sensor",       "requires_screen": None},
@@ -111,6 +114,8 @@ BIND_KEYS = {
     # колонка рядом с температурой/влажностью). Имя НЕ "floor_temp_sensor" —
     # тот ключ занят legacy-миграцией (schemas.py → floors_current_temp).
     "home_floor_temp_sensor": {"multi": False, "domain": "sensor", "requires_screen": None},
+    # Опциональный датчик атмосферного давления — ещё одна колонка климат-строки.
+    "pressure_sensor": {"multi": False, "domain": "sensor", "requires_screen": None},
 
     # Fallback-сенсоры для climate-экранов (когда сам термостат не отдаёт current_temperature).
     # Имена строго совпадают с APK pinnedOne() в ClimateMoodScreen.kt: <screen_plural>_current_temp.

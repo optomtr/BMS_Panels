@@ -54,13 +54,14 @@ export const BIND_KEYS = {
   gates:                 { multi: true,  domain: 'cover',  extraDomains: ['lock'],   requiresScreen: 'garage' },
   // Импульсные ворота (одна кнопка) + необязательные концевики по индексу.
   gate_pulses:           { multi: true,  domain: 'button', extraDomains: ['input_button','switch','script'], requiresScreen: 'garage' },
-  gate_pulse_sensors:    { multi: true,  domain: 'binary_sensor', requiresScreen: 'garage' },
+  gate_pulse_sensors:    { multi: true,  domain: 'binary_sensor', extraDomains: ['cover'], requiresScreen: 'garage' },
   scenes:                { multi: true,  domain: 'scene',  extraDomains: ['script'], requiresScreen: 'automations' },
-  automations:           { multi: true,  domain: 'automation',                       requiresScreen: 'automations' },
+  automations:           { multi: true,  domain: 'automation', extraDomains: ['input_boolean','switch'], requiresScreen: 'automations' },
   temp_sensor:      { multi: false, domain: 'sensor',       requiresScreen: null          },
   humidity_sensor:  { multi: false, domain: 'sensor',       requiresScreen: null          },
   // Датчик температуры тёплого пола на главном экране (опционально).
   home_floor_temp_sensor: { multi: false, domain: 'sensor', requiresScreen: null          },
+  pressure_sensor:        { multi: false, domain: 'sensor', requiresScreen: null          },
   // Fallback-сенсоры для climate-экранов — имена строго совпадают с APK:
   // ClimateMoodScreen.kt pinnedOne("acs_current_temp") и т.д.
   acs_current_temp:        { multi: false, domain: 'sensor', requiresScreen: 'ac'        },

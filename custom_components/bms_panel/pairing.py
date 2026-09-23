@@ -634,18 +634,11 @@ def async_register_pairing(hass: HomeAssistant, taken_panel_ids) -> None:
             connection.send_error(msg["id"], "unauthorized", "Нужны права администратора")
             return
 
-        # Лицензия объекта. Проверяем ТОЛЬКО здесь — при подключении новой
-        # панели. Уже работающие панели этой проверки не касаются никогда:
-        # дом клиента не должен вставать из-за лицензии.
-        from .license import async_get_state as _license_state
-        lic = await _license_state(hass)
-        if not lic.get("valid"):
-            connection.send_error(
-                msg["id"], "no_license",
-                f"{lic.get('reason', 'Нет действующей лицензии')} "
-                f"Идентификатор этого дома: {lic.get('instance', '')}",
-            )
-            return
+        # Лицензия дома в интеграции больше НЕ требуется (решение владельца
+        # 22.09.2026): защита от копирования перенесена на активацию самих
+        # панелей (экранчик). Поэтому новая панель подключается к дому
+        # независимо от лицензии — экран «Лицензия» в интеграции оставлен
+        # справочным и ничего не блокирует.
 
         try:
             token = await async_issue_panel_token(hass, user, panel_id)

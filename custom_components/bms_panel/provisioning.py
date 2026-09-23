@@ -488,16 +488,9 @@ async def async_install_panel(
     if user is None or not user.is_admin:
         raise ProvisioningError("Установка панели доступна только администраторам Home Assistant")
 
-    # Лицензия — ТА ЖЕ проверка, что при подтверждении QR (pairing.py,
-    # websocket_pair_approve): новая панель без действующей лицензии дома не
-    # заводится никаким путём, автоустановка не в обход.
-    from .license import async_get_state as _license_state
-    lic = await _license_state(hass)
-    if not lic.get("valid"):
-        raise ProvisioningError(
-            f"{lic.get('reason', 'Нет действующей лицензии')} "
-            f"Идентификатор этого дома: {lic.get('instance', '')}"
-        )
+    # Лицензия дома в интеграции больше НЕ требуется (решение владельца
+    # 22.09.2026): защита от копирования перенесена на активацию самих панелей.
+    # Автоустановка панели не блокируется лицензией дома.
 
     if ha_host:
         host = ha_host

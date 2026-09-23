@@ -77,6 +77,7 @@ const BIND_GROUPS = [
       { key: 'temp_sensor',     label: 'Сенсор температуры' },
       { key: 'humidity_sensor', label: 'Сенсор влажности' },
       { key: 'home_floor_temp_sensor', label: 'Датчик температуры пола (опц.)' },
+      { key: 'pressure_sensor', label: 'Датчик давления (опц.)' },
     ] },
   { key: 'ac',          title: 'Кондиционер',    icon: 'mdi:air-conditioner',   screen: 'ac',
     binds: [
@@ -133,7 +134,7 @@ const BIND_GROUPS = [
   { key: 'automations', title: 'Автоматизации',  icon: 'mdi:robot-outline',     screen: 'automations',
     binds: [
       { key: 'scenes',      label: 'Сценарии (scene / script) — запуск кнопкой' },
-      { key: 'automations', label: 'Расписания (automation) — вкл/выкл' },
+      { key: 'automations', label: 'Расписания и режимы «Авто» (automation / input_boolean / switch) — вкл/выкл' },
     ] },
 ];
 
@@ -1823,8 +1824,11 @@ class BMSPanelEditor extends HTMLElement {
         <button class="icon-btn" id="btn-license" title="Лицензия объекта">
           <ha-icon icon="mdi:certificate"></ha-icon>
         </button>
-        <button class="icon-btn" id="btn-apk" title="Обновление для панелей">
+        <button class="icon-btn" id="btn-apk" title="Обновление приложения (Android-панели)">
           <ha-icon icon="mdi:cellphone-arrow-down"></ha-icon>
+        </button>
+        <button class="icon-btn" id="btn-rk" title="Прошивка Linux-панели (по Wi-Fi)">
+          <ha-icon icon="mdi:tablet-dashboard"></ha-icon>
         </button>
         <button class="icon-btn" id="btn-pair" title="Подключить панель по QR">
           <ha-icon icon="mdi:qrcode-scan"></ha-icon>
@@ -1850,6 +1854,7 @@ class BMSPanelEditor extends HTMLElement {
     this.shadowRoot.getElementById('btn-pair').onclick = () => this._showPairPanel();
     this.shadowRoot.getElementById('btn-install').onclick = () => this._showInstallPanel();
     this.shadowRoot.getElementById('btn-apk').onclick = () => this._showApkUpload();
+    this.shadowRoot.getElementById('btn-rk').onclick = () => this._showRkUpload();
     this.shadowRoot.getElementById('btn-license').onclick = () => this._showLicense();
 
     // Переход по QR с экрана панели: ссылка вида /bms-panels?pair=CK8ZET —
@@ -3996,6 +4001,65 @@ class BMSPanelEditor extends HTMLElement {
           const data = await r.json();
           if (!r.ok) { this._toast(data.error || 'Не удалось загрузить', 'error'); return; }
           this._toast(`Обновление ${data.version} загружено — панели его увидят`, 'success', { duration: 6000 });
+          refresh();
+        } catch (err) {
+          this._toast('Ошибка загрузки: ' + (err?.message || ''), 'error');
+        }
+      };
+    });
+  }
+
+  _showRkUpload() {
+    this._showModal(`
+      <div class="modal" style="max-width: 460px;">
+        <h3>Прошивка Linux-панели</h3>
+        <p style="color: var(--secondary-text-color); font-size: 13px; margin: 0 0 14px; line-height: 1.45;">
+          Загрузите файл прошивки <b>bmspanel-rk</b> — Linux-панели этого дома
+          обновятся по Wi-Fi сами (проверка при старте и раз в час), без USB.
+          Файл отдаётся только подключённой к дому панели.
+        </p>
+        <div id="rk-current" style="font-size: 13px; margin-bottom: 12px;">Проверяем…</div>
+        <input type="text" id="rk-ver" class="control" placeholder="Версия, например 0.3.1" style="margin-bottom: 8px;">
+        <input type="file" id="rk-file" class="control">
+        <div class="modal-actions">
+          <button class="btn" id="rk-cancel">Закрыть</button>
+          <button class="btn primary" id="rk-ok">Загрузить</button>
+        </div>
+      </div>
+    `, (root, close) => {
+      const box = root.querySelector('#rk-current');
+      const refresh = async () => {
+        try {
+          const r = await fetch('/api/bms_panel/rk_update', {
+            headers: { Authorization: `Bearer ${this._hass.auth.data.access_token}` },
+          });
+          if (!r.ok) { box.textContent = 'Сейчас прошивки в доме нет.'; return; }
+          const m = await r.json();
+          box.innerHTML = `Сейчас в доме: <b>${esc(m.version)}</b> (${(m.size / 1048576).toFixed(1)} МБ)`;
+        } catch (_) {
+          box.textContent = 'Не удалось проверить, что лежит в доме.';
+        }
+      };
+      refresh();
+
+      root.querySelector('#rk-cancel').onclick = close;
+      root.querySelector('#rk-ok').onclick = async () => {
+        const input = root.querySelector('#rk-file');
+        const file = input.files && input.files[0];
+        if (!file) { this._toast('Выберите файл прошивки', 'error'); return; }
+        const ver = (root.querySelector('#rk-ver').value || '').trim();
+        const fd = new FormData();
+        fd.append('file', file);
+        if (ver) fd.append('version', ver);
+        try {
+          const r = await fetch('/api/bms_panel/rk_update/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${this._hass.auth.data.access_token}` },
+            body: fd,
+          });
+          const data = await r.json();
+          if (!r.ok) { this._toast(data.error || 'Не удалось загрузить', 'error'); return; }
+          this._toast(`Прошивка ${data.version} загружена — панели обновятся по Wi-Fi`, 'success', { duration: 6000 });
           refresh();
         } catch (err) {
           this._toast('Ошибка загрузки: ' + (err?.message || ''), 'error');
