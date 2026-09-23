@@ -75,7 +75,7 @@ export const BIND_KEYS = {
 export const SCREEN_KEYS = ['light','curtain','window','music','ac','heating','floor','convector','ventilation',
   'energy','pool','irrigation','garage','automations'];
 
-const SCREEN_TIMEOUT_OPTIONS = [15, 30, 60, 120, 300, 600];
+const SCREEN_TIMEOUT_OPTIONS = [0, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
 const LANGUAGES = ['English', 'Русский'];
 
 // ---- Custom Cards (mirror of const.py) ----
@@ -118,6 +118,14 @@ export function validate(cfg, panelId, allPanels, hassStates) {
       'Фон полностью прозрачный — текст может быть нечитаемым.',
       'Рекомендуется 30–60%.',
       { type: 'field', key: 'background_dim' }));
+  }
+
+  const start = cfg.start_screen || 'home';
+  if (start !== 'home' && !(cfg.screens && cfg.screens[start] && cfg.screens[start].enabled)) {
+    out.push(makeIssue('V_start_screen', SEV_WARN,
+      'Экран при включении — выключенный раздел: панель будет открывать главный.',
+      'Включите этот раздел на вкладке «Экраны» или выберите другой.',
+      { type: 'field', key: 'start_screen' }));
   }
 
   // Guard на undefined — конфиг может быть частично загружен до миграции.

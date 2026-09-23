@@ -363,6 +363,8 @@ CONFIG_SCHEMA = vol.Schema({
         vol.All(int, vol.Range(min=0)),
     vol.Optional("screen_timeout", default=DEFAULT_CONFIG["screen_timeout"]):
         vol.In(SCREEN_TIMEOUT_OPTIONS),
+    vol.Optional("start_screen", default=DEFAULT_CONFIG["start_screen"]):
+        vol.In(["home", *SCREEN_KEYS]),
     vol.Optional("language",       default=DEFAULT_CONFIG["language"]):
         vol.In(LANGUAGES),
     vol.Optional("entities",       default=lambda: copy.deepcopy(DEFAULT_CONFIG["entities"])):

@@ -1933,6 +1933,7 @@ class BMSPanelEditor extends HTMLElement {
       background_transform: attrs.background_transform || { zoom: 1, dx: 0, dy: 0 },
       background_version: attrs.background_version || 0,
       screen_timeout: attrs.screen_timeout ?? 30,
+      start_screen:   attrs.start_screen || 'home',
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
       area_id:        attrs.area_id || null,
@@ -2258,7 +2259,7 @@ class BMSPanelEditor extends HTMLElement {
       if (a.type === 'home_nav_item') return 'screens';
       if (a.type === 'card' && a.key === 'screens') return 'screens';
       if (a.type === 'card' && a.key === 'home_nav') return 'screens';
-      if (a.type === 'field' && ['background_dim','screen_timeout','language','panel_id'].includes(a.key)) return 'overview';
+      if (a.type === 'field' && ['background_dim','screen_timeout','start_screen','language','panel_id'].includes(a.key)) return 'overview';
       return 'overview';
     };
     let sevError = 0, sevWarn = 0;
@@ -2367,13 +2368,29 @@ class BMSPanelEditor extends HTMLElement {
         <div class="field-row">
           <label>Гасить экран через</label>
           <select id="timeout" class="control">
-            ${[15,30,60,120,300,600].map(s => `
+            ${[0,15,30,60,120,300,600,900,1800,3600].map(s => `
               <option value="${s}" ${cfg.screen_timeout===s?'selected':''}>
-                ${s < 60 ? s + ' сек' : (s/60) + ' мин'}
+                ${s === 0 ? 'Никогда' : s < 60 ? s + ' сек' : s === 3600 ? '1 час' : (s/60) + ' мин'}
               </option>`).join('')}
           </select>
         </div>
         ${this._inlineIssue(issues, i => i.anchor.key === 'screen_timeout')}
+
+        <div class="field-row">
+          <label>Экран при включении</label>
+          <select id="start-screen" class="control">
+            <option value="home" ${(cfg.start_screen || 'home') === 'home' ? 'selected' : ''}>Главный</option>
+            ${Object.keys(SCREEN_META)
+              .filter(k => k === cfg.start_screen || (cfg.screens[k] && cfg.screens[k].enabled))
+              .map(k => `<option value="${k}" ${cfg.start_screen === k ? 'selected' : ''}>${esc(SCREEN_META[k].ru)}</option>`)
+              .join('')}
+          </select>
+        </div>
+        <div class="hint" style="margin: -4px 0 10px;">
+          На этот экран панель встаёт при включении и каждый раз, когда просыпается после
+          погашенного экрана. Кнопка «назад» с него ведёт на главный.
+        </div>
+        ${this._inlineIssue(issues, i => i.anchor.key === 'start_screen')}
 
         <div class="field-row">
           <label>Язык интерфейса</label>
@@ -3320,6 +3337,8 @@ class BMSPanelEditor extends HTMLElement {
     }
     const tmout = $('#timeout');
     if (tmout) tmout.onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._markDirty(); };
+    const startSel = $('#start-screen');
+    if (startSel) startSel.onchange = e => { cfg.start_screen = e.target.value; this._markDirty(); };
     const lang = $('#lang');
     if (lang) lang.onchange = e => { cfg.language = e.target.value; this._markDirty(); };
 

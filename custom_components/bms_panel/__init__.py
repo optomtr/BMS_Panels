@@ -117,6 +117,7 @@ _MERGE_STRATEGY = {
     "home_nav":       "replace",
     "background_dim": "replace",
     "screen_timeout": "replace",
+    "start_screen":   "replace",
     "language":       "replace",
     "area_id":        "replace",
     "schema_version": "replace",

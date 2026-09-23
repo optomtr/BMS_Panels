@@ -121,6 +121,17 @@ def validate(
             {"type": "field", "key": "screen_timeout"},
         ))
 
+    start = cfg.get("start_screen") or "home"
+    if start != "home":
+        scr = (cfg.get("screens") or {}).get(start) or {}
+        if not scr.get("enabled"):
+            issues.append(Issue(
+                "V_start_screen", SEV_WARN,
+                "Экран при включении — выключенный раздел: панель будет открывать главный.",
+                "Включите этот раздел на вкладке «Экраны» или выберите другой.",
+                {"type": "field", "key": "start_screen"},
+            ))
+
     if cfg.get("language") not in LANGUAGES:
         issues.append(Issue(
             "V09", SEV_ERROR,
