@@ -245,6 +245,8 @@ DEFAULT_CONFIG = {
     "update_nonce": 0,
     # AirPlay 2 приёмник на Android-панели (музыка с iPhone на её колонку).
     "airplay_enabled": False,
+    # Имя панели в списке AirPlay; пусто — «BMS <имя панели>».
+    "airplay_name": "",
     "language": "Русский",
     "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},
     # area_id привязки HA — для группировки entity автоматически

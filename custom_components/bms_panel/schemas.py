@@ -369,6 +369,8 @@ CONFIG_SCHEMA = vol.Schema({
         vol.All(int, vol.Range(min=0)),
     vol.Optional("airplay_enabled", default=DEFAULT_CONFIG["airplay_enabled"]):
         bool,
+    vol.Optional("airplay_name", default=DEFAULT_CONFIG["airplay_name"]):
+        vol.All(str, vol.Length(max=40)),
     vol.Optional("language",       default=DEFAULT_CONFIG["language"]):
         vol.In(LANGUAGES),
     vol.Optional("entities",       default=lambda: copy.deepcopy(DEFAULT_CONFIG["entities"])):

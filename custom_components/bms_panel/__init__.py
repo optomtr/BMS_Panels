@@ -120,6 +120,7 @@ _MERGE_STRATEGY = {
     "start_screen":   "replace",
     "update_nonce":   "replace",
     "airplay_enabled": "replace",
+    "airplay_name":   "replace",
     "language":       "replace",
     "area_id":        "replace",
     "schema_version": "replace",
