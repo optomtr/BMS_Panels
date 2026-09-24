@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.17.2';
+import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.18.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -1936,6 +1936,9 @@ class BMSPanelEditor extends HTMLElement {
       background_version: attrs.background_version || 0,
       screen_timeout: attrs.screen_timeout ?? 30,
       start_screen:   attrs.start_screen || 'home',
+      // Не править руками — только кнопкой «Обновить все панели»; держим при
+      // сохранении, иначе «Сохранить» сбрасывал бы его в 0.
+      update_nonce:   attrs.update_nonce || 0,
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
       area_id:        attrs.area_id || null,
@@ -4007,6 +4010,14 @@ class BMSPanelEditor extends HTMLElement {
           <button class="btn" id="apk-cancel">Закрыть</button>
           <button class="btn primary" id="apk-ok">Загрузить</button>
         </div>
+        <div style="border-top: 1px solid var(--divider-color); margin-top: 16px; padding-top: 14px;">
+          <button class="btn primary" id="apk-push" style="width: 100%;">Обновить все панели сейчас</button>
+          <p style="color: var(--secondary-text-color); font-size: 12px; margin: 8px 0 0; line-height: 1.45;">
+            Панели сами скачают загруженное обновление и поставят его без нажатий
+            на экране (нужен root — на панелях BMS он есть), затем перезапустятся.
+            Панель без root покажет окно «Установить?».
+          </p>
+        </div>
       </div>
     `, (root, close) => {
       const box = root.querySelector('#apk-current');
@@ -4025,6 +4036,15 @@ class BMSPanelEditor extends HTMLElement {
       refresh();
 
       root.querySelector('#apk-cancel').onclick = close;
+      root.querySelector('#apk-push').onclick = async () => {
+        try {
+          const r = await this._hass.callWS({ type: 'bms_panel/request_update' });
+          this._toast(`Команда отправлена ${r.panels} панелям — обновятся за 1–2 минуты`,
+                      'success', { duration: 7000 });
+        } catch (err) {
+          this._toast('Не удалось отправить: ' + (err?.message || ''), 'error');
+        }
+      };
       root.querySelector('#apk-ok').onclick = async () => {
         const input = root.querySelector('#apk-file');
         const file = input.files && input.files[0];

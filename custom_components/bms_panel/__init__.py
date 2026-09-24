@@ -118,6 +118,7 @@ _MERGE_STRATEGY = {
     "background_dim": "replace",
     "screen_timeout": "replace",
     "start_screen":   "replace",
+    "update_nonce":   "replace",
     "language":       "replace",
     "area_id":        "replace",
     "schema_version": "replace",
@@ -637,6 +638,35 @@ def _async_register_websocket_api(hass: HomeAssistant) -> None:
         ))
         connection.send_result(msg["id"], {"job": job, "ip": ip})
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): "bms_panel/request_update",
+        vol.Optional("panel_id"): str,
+    })
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    async def websocket_request_update(hass, connection, msg) -> None:
+        """«Обновить все панели»: отметить в конфиге каждой (или одной) панели
+        новое update_nonce. Android-панель, увидев его, сама берёт APK у дома и
+        ставит через root. Мимо проверки конфига — это не правка настроек, а
+        команда: панель с ошибкой в привязках тоже должна обновиться."""
+        configs = hass.data[DOMAIN]["configs"]
+        only = (msg.get("panel_id") or "").strip().lower()
+        targets = [pid for pid in hass.data[DOMAIN]["meta"] if not only or pid == only]
+        if not targets:
+            connection.send_error(msg["id"], "no_panels", "Нет панелей для обновления")
+            return
+        nonce = int(time.time())
+        for pid in targets:
+            cfg = configs.get(pid) or {}
+            cfg["update_nonce"] = nonce
+            configs[pid] = cfg
+        await hass.data[DOMAIN]["save"]()
+        for pid in targets:
+            async_dispatcher_send(hass, SIGNAL_CONFIG_UPDATED, pid)
+        _LOGGER.info("BMS Panel: запрошено обновление %d панелей", len(targets))
+        connection.send_result(msg["id"], {"panels": len(targets), "nonce": nonce})
+
+    websocket_api.async_register_command(hass, websocket_request_update)
     websocket_api.async_register_command(hass, websocket_list_panels)
     websocket_api.async_register_command(hass, websocket_discover_panels)
     websocket_api.async_register_command(hass, websocket_install_panel)
