@@ -625,6 +625,8 @@ input[type=range] { width: 100%; }
 }
 .bind-item.unavailable .nm { color: var(--bms-warn); }
 .bind-item.unavailable .nm::after { content: ' (offline)'; font-size: 11px; }
+.bind-item.missing .nm { color: var(--bms-error, #e53935); }
+.bind-item.missing .nm::after { content: ' — удалено из HA, снимите галочку'; font-size: 11px; }
 .bind-item-search {
   padding: 6px 8px;
   position: sticky; top: 0;
@@ -2766,6 +2768,8 @@ class BMSPanelEditor extends HTMLElement {
         <div class="entity-select-wrap">
           <select class="entity-select" data-key="${bindDef.key}">
             <option value="">— не привязано —</option>
+            ${current && !this._hass.states[current] ? `
+              <option value="${esc(current)}" selected>${esc(current)} — удалено из HA</option>` : ''}
             ${opts.map(o => `
               <option value="${esc(o.id)}" ${current===o.id?'selected':''}>
                 ${esc(o.name)} ${o.state === 'unavailable' ? '(офлайн)' : ''}
@@ -2802,6 +2806,12 @@ class BMSPanelEditor extends HTMLElement {
         occupiedBy: occupied.get(eid),  // имя другой панели или undefined
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
+    const existingCount = all.length;
+    // Выбранные, которых в HA больше нет (удалили/переименовали), — в начало
+    // списка, с галочкой: иначе их не видно и снять нельзя, а ошибка
+    // «больше не существует» висит без выхода (случай 24.09.2026).
+    const missing = selected.filter(eid => !this._hass.states[eid]);
+    all.unshift(...missing.map(eid => ({ id: eid, name: eid, state: 'missing' })));
 
     const sev = bindIssues.length ? bindIssues[0].severity : null;
     const cardClass = sev === SEV_ERROR ? 'error' : sev === SEV_WARN ? 'warn' : (selected.length === 0 ? 'warn' : '');
@@ -2811,7 +2821,7 @@ class BMSPanelEditor extends HTMLElement {
       metaText = `⚠ Не выбрано — если экран включён, на панели будет пусто`;
       metaClass = 'warn';
     } else {
-      metaText = `Выбрано: ${selected.length} из ${all.length}`;
+      metaText = `Выбрано: ${selected.length} из ${existingCount}`;
       metaClass = '';
     }
 
@@ -2828,7 +2838,7 @@ class BMSPanelEditor extends HTMLElement {
                 <input type="text" placeholder="Поиск..." data-search="${bindDef.key}">
               </div>
               ${all.map(o => `
-                <label class="bind-item ${o.state === 'unavailable' ? 'unavailable' : ''}" data-name="${esc(o.name).toLowerCase()} ${esc(o.id).toLowerCase()}" title="${o.occupiedBy ? 'Уже привязано к панели ' + esc(o.occupiedBy) : ''}">
+                <label class="bind-item ${o.state === 'unavailable' ? 'unavailable' : ''} ${o.state === 'missing' ? 'missing' : ''}" data-name="${esc(o.name).toLowerCase()} ${esc(o.id).toLowerCase()}" title="${o.occupiedBy ? 'Уже привязано к панели ' + esc(o.occupiedBy) : ''}">
                   <input type="checkbox" class="entity-multi-cb" data-key="${bindDef.key}" value="${esc(o.id)}" ${selected.includes(o.id) ? 'checked' : ''}>
                   <span class="nm">${esc(o.name)}</span>
                   ${o.occupiedBy && !selected.includes(o.id) ? `<span style="font-size:11px; color:var(--bms-warn); margin-left:4px;">занято</span>` : ''}
@@ -3430,6 +3440,13 @@ class BMSPanelEditor extends HTMLElement {
         if (cb.checked && idx < 0) cur.push(cb.value);
         if (!cb.checked && idx >= 0) cur.splice(idx, 1);
         cfg.entities[key] = cur;
+        // Сняли удалённое из HA устройство — перерисовать, чтобы ушла и строка,
+        // и ошибка «больше не существует».
+        if (!cb.checked && !this._hass.states[cb.value]) {
+          this._markDirty();
+          this._renderContent();
+          return;
+        }
         // Шторы: список «Реверс» зависит от выбора → чистим отвязанные и перерисовываем.
         if (key === 'curtains') {
           if (Array.isArray(cfg.curtain_reverse)) {
