@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.18.0';
+import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.19.0';
 
 // ---------- Метаданные экранов ----------
 
@@ -1939,6 +1939,7 @@ class BMSPanelEditor extends HTMLElement {
       // Не править руками — только кнопкой «Обновить все панели»; держим при
       // сохранении, иначе «Сохранить» сбрасывал бы его в 0.
       update_nonce:   attrs.update_nonce || 0,
+      airplay_enabled: attrs.airplay_enabled === true,
       language:       attrs.language || 'Русский',
       entities:       attrs.entities || {},
       area_id:        attrs.area_id || null,
@@ -2396,6 +2397,20 @@ class BMSPanelEditor extends HTMLElement {
           погашенного экрана. Кнопка «назад» с него ведёт на главный.
         </div>
         ${this._inlineIssue(issues, i => i.anchor.key === 'start_screen')}
+
+        <div class="field-row">
+          <label>AirPlay (музыка с iPhone)</label>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="airplay-enabled" ${cfg.airplay_enabled ? 'checked' : ''}>
+            <span>${cfg.airplay_enabled ? 'Включён' : 'Выключен'}</span>
+          </label>
+        </div>
+        <div class="hint" style="margin: -4px 0 10px;">
+          Панель появится в списке AirPlay на iPhone и Mac как «BMS ${esc(panel.panel_name || panel.panel_id)}».
+          Звук идёт на динамик панели или на её Bluetooth-колонку
+          (колонка выбирается на самой панели: Настройки → Bluetooth-колонка).
+          Только Android-панели с приложением 0.2.46 и новее.
+        </div>
 
         <div class="field-row">
           <label>Язык интерфейса</label>
@@ -3355,6 +3370,8 @@ class BMSPanelEditor extends HTMLElement {
     if (tmout) tmout.onchange = e => { cfg.screen_timeout = parseInt(e.target.value); this._markDirty(); };
     const startSel = $('#start-screen');
     if (startSel) startSel.onchange = e => { cfg.start_screen = e.target.value; this._markDirty(); };
+    const apSel = $('#airplay-enabled');
+    if (apSel) apSel.onchange = e => { cfg.airplay_enabled = e.target.checked; this._markDirty(); this._renderContent(); };
     const lang = $('#lang');
     if (lang) lang.onchange = e => { cfg.language = e.target.value; this._markDirty(); };
 

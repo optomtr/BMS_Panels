@@ -243,6 +243,8 @@ DEFAULT_CONFIG = {
     # «Обновить все панели» (кнопка в окне APK): меняется на текущее время —
     # Android-панель видит новое число и сама ставит APK из дома через root.
     "update_nonce": 0,
+    # AirPlay 2 приёмник на Android-панели (музыка с iPhone на её колонку).
+    "airplay_enabled": False,
     "language": "Русский",
     "entities": {k: ([] if v["multi"] else None) for k, v in BIND_KEYS.items()},
     # area_id привязки HA — для группировки entity автоматически

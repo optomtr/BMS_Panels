@@ -119,6 +119,7 @@ _MERGE_STRATEGY = {
     "screen_timeout": "replace",
     "start_screen":   "replace",
     "update_nonce":   "replace",
+    "airplay_enabled": "replace",
     "language":       "replace",
     "area_id":        "replace",
     "schema_version": "replace",
