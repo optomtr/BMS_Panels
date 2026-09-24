@@ -14,7 +14,7 @@
 // ?v= синхронно с manifest.json version — иначе браузер отдаёт закэшированную
 // validation.js (editor.js сам бастится через ?v={addon_version} в __init__.py,
 // но относительный import тянет старый файл из кэша).
-import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.15.0';
+import { validate, summary, hasErrors, BIND_KEYS, HOME_NAV_OPTIONS, SEV_ERROR, SEV_WARN, SEV_INFO } from './validation.js?v=2.17.2';
 
 // ---------- Метаданные экранов ----------
 
@@ -2744,6 +2744,9 @@ class BMSPanelEditor extends HTMLElement {
 
   _renderBind(bindDef, entities, issues, cfg) {
     const meta = BIND_KEYS[bindDef.key];
+    // Поле, которого нет в загруженном validation.js (браузер отдал старый файл
+    // из кэша), — пропускаем, а не роняем всю вкладку «Устройства».
+    if (!meta) return '';
     const bindIssues = issues.filter(i => i.anchor.type === 'bind_card' && i.anchor.key === bindDef.key);
     if (meta.multi) return this._renderBindMulti(bindDef, entities, bindIssues, cfg);
     return this._renderBindOne(bindDef, entities, bindIssues);
